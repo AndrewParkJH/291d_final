@@ -34,7 +34,7 @@ class ILP_Solver:
             current_time=self.env.now,
             max_capacity=self.network.max_vehicle_capacity,
             max_delay=self.max_delay,
-            prune_edges=True,
+            prune_edges=False,
             top_k=10,
             debug=False
         )

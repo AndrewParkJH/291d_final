@@ -27,9 +27,10 @@ class ShuttleSim:
             self.request_accumulate()
             yield self.env.timeout(self.accumulation_time)
 
-            trigger = self.dispatch_trigger
+            self.dispatch_trigger.succeed()
+            print(f"[{self.env.now}] Dispatch event triggered")
+
             self.dispatch_trigger = self.env.event()
-            trigger.succeed()
 
             if self.env.now >= self.end_time:
                 break
@@ -62,9 +63,30 @@ class ShuttleSim:
             # dispatch logic here...
             # benchmark: ilp logic
             if self.run_mode == "benchmark":
-                self.ilp_solver.solve(self.current_request)
+                self.ilp_solver.solve(self.current_request) # integer linear program
+
+                # clustering
+
+
+                # reinforcement learning
+
+
                 print(f"\tbenchmark logic performed")
                 # benchmark logic here
 
             # clear accumulated requests after dispatching
             self.current_request.clear()  # add conditional (clear served requests only) later
+
+
+    """
+    Clustering Workflow
+    
+    - based on the aggregated requests
+    - map to TAZ
+    - perform clustering TAZ
+    - fast clustering
+        - k-means 
+        - Dendogram
+    - Ideally try to aim for <5 second for clustering of each TAZ
+    
+    """

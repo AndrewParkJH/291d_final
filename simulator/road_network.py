@@ -14,6 +14,11 @@ class RoadNetwork:
 
         self.one = 0
 
+    def update_congestion(self):
+        # update travel time in each TAZ
+
+        return 0
+
     def initialize_vehicle(self, num_vehicles, vehicle_capacity, randomize_vehicles):
         """
         initializes vehicle positions
