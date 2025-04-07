@@ -31,9 +31,6 @@ class ShuttleSim:
             self.dispatch_trigger = self.env.event()
             trigger.succeed()
 
-            # clear accumulated requests after dispatching
-            self.current_request.clear()  # add conditional (clear served requests only) later
-
             if self.env.now >= self.end_time:
                 break
 
@@ -63,9 +60,11 @@ class ShuttleSim:
             print(f"[{self.env.now}] Tick | {len(self.current_request)} requests")
 
             # dispatch logic here...
-            self.ilp_solver.solve(self.current_request)
-
             # benchmark: ilp logic
             if self.run_mode == "benchmark":
+                self.ilp_solver.solve(self.current_request)
                 print(f"\tbenchmark logic performed")
                 # benchmark logic here
+
+            # clear accumulated requests after dispatching
+            self.current_request.clear()  # add conditional (clear served requests only) later

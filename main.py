@@ -16,7 +16,7 @@ def main():
     env = simpy.Environment(initial_time=SIM_START_TIME)
     road_network = RoadNetwork(env=env,
                         num_vehicles=40,
-                        vehicle_capacity=3,
+                        vehicle_capacity=2,
                         randomize_vehicles=True,
                         graph_path=GRAPH_FILE_DIR)
 

@@ -225,7 +225,7 @@ def generate_rv_graph(graph, vehicles, requests, current_time, max_capacity=2, m
     import heapq
 
     # Helper function for pruning edges
-    def prune_edges(rv_graph, top_k):
+    def _prune_edges(rv_graph, top_k):
         """
         Prune edges in the RV graph to limit the maximum number of edges per node.
 
@@ -318,45 +318,9 @@ def generate_rv_graph(graph, vehicles, requests, current_time, max_capacity=2, m
         except nx.NetworkXNoPath:
             continue
 
-        # # Method 2 : use Travel function
-        # try:
-        #     if debug:
-        #         print(f'\t req-req edge evaluation at {req1["id"]}-{req2["id"]} - combinatorial comparison')
-        #     # Create a virtual vehicle at req1's origin with no passengers
-        #     virtual_vehicle = {
-        #         "id": 'virtual',
-        #         "q_v": req1["o_r"],  # Start position at req1's origin
-        #         "t_v": vehicles[-1]["t_v"],  # Current time set to req1's request time
-        #         "passengers": 0,
-        #         "trip_set": []  # No passengers initially
-        #     }
-        #
-        #     # Run the travel function to validate the trip for [req1, req2]
-        #     valid_trip, trip_cost = travel(virtual_vehicle, [req1, req2], graph, max_delay=max_delay, debug=True)
-        #
-        #     if valid_trip:
-        #         # Add edge to the RV graph if the trip is valid
-        #         rv_graph.add_edge(req1["id"], req2["id"], travel_time=trip_cost, edge_type='rr')
-        #
-        # except nx.NetworkXNoPath:
-        #     # Skip if no path exists between the nodes
-        #     continue
-        #
-        # # Method 1: wrong
-        # try:
-        #     # compare max waiting time
-        #     travel_time = nx.shortest_path_length(
-        #         graph, source=req1["o_r"], target=req2["o_r"], weight="travel_time"
-        #     )
-        #
-        #     if req1["t_r^*"] + travel_time <= req2["t_r^pl"]:
-        #         rv_graph.add_edge(req1["id"], req2["id"], travel_time=travel_time, edge_type='rr')
-        # except nx.NetworkXNoPath:
-        #     continue
-
     # Prune edges if requested
     if prune_edges:
-        rv_graph = prune_edges(rv_graph, top_k=top_k)
+        rv_graph = _prune_edges(rv_graph, top_k=top_k)
 
     return rv_graph
 
