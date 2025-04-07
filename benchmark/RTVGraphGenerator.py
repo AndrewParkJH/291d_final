@@ -1,5 +1,5 @@
 import networkx as nx
-from final_project.RVGraphGenerator import travel
+from benchmark.RVGraphGenerator import travel
 
 def generate_rtv_graph(rv_graph, vehicles, requests, graph, max_capacity=2, max_delay=600, debug=False):
     """
