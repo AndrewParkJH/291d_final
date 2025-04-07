@@ -4,6 +4,8 @@ import pandas as pd
 from simulator.road_network import RoadNetwork
 from simulator.sav_simulator import ShuttleSim
 
+RoadNetworkBuildq
+
 DEBUG = True
 BASE_DIR = os.curdir
 DATA_DIR = os.path.join(BASE_DIR, "data/sf_mtc_od_sample.csv")
