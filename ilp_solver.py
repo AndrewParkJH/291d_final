@@ -71,9 +71,9 @@ class ILP_Solver:
     def process_requests(self, request_dict):
         requests = []
         for request in request_dict:
-            time = request['time_departure']
-            origin_coordinates = (request['x_x'], request['y_x'])
-            destination_coordinates = (request['x_y'], request['y_y'])
+            time = request['req_time']
+            origin_coordinates = (request['pu_lon'], request['pu_lat'])
+            destination_coordinates = (request['do_lon'], request['do_lat'])
 
             origin_node = self.network.find_nearest_node_from_coodrinate(origin_coordinates)
             destination_node = self.network.find_nearest_node_from_coodrinate(destination_coordinates)

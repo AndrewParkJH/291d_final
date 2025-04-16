@@ -46,8 +46,8 @@ class ShuttleSim:
         time_next = self.env.now + self.accumulation_time
         # accumulate requests here...
         request_df = self.request_data[
-            (self.request_data["time_departure"] >= time_now) &
-            (self.request_data["time_departure"] < time_next)
+            (self.request_data["req_time"] >= time_now) &
+            (self.request_data["req_time"] < time_next)
             ]
 
         for _, request in request_df.iterrows():
