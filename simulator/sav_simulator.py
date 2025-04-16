@@ -27,6 +27,9 @@ class ShuttleSim:
             self.request_accumulate()
             yield self.env.timeout(self.accumulation_time)
 
+            # add request cluster
+
+
             self.dispatch_trigger.succeed()
             print(f"[{self.env.now}] Dispatch event triggered")
 
@@ -64,9 +67,6 @@ class ShuttleSim:
             # benchmark: ilp logic
             if self.run_mode == "benchmark":
                 self.ilp_solver.solve(self.current_request) # integer linear program
-
-                # clustering
-
 
                 # reinforcement learning
 

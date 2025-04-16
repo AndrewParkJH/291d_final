@@ -1,17 +1,20 @@
 import pandas as pd
+import numpy as np
 import geopandas as gpd
 import datetime as dt
+from tqdm import tqdm
 import os
-
+import json
 import networkx as nx
 import osmnx as ox
 import matplotlib.pyplot as plt
-from utils.geographic_helper import get_random_coordinate
+from utils.geographic_helper import build_zipcode_bounds, load_zipcode_bounds, get_random_coordinate_cached
 
 PATH_DATA = './data'
 PATH_ROAD = './data/road_network'
 PATH_TAZ = './data/taz_shape'
 PATH_OUTPUT = './output'
+PATH_EPISODE = './data/request_episodes'
 
 COLUMN_FILTER_COL = {
     'AppOnOrPassengerDroppedOffZip': 'driver_last_pdo_zip',
@@ -20,23 +23,23 @@ COLUMN_FILTER_COL = {
     'TripReqDate':'req_date',
     'ReqAcceptedDate':'req_accept_date',
     'ReqAcceptedZip':'driver_zip_at_req_acceptance',
-    'PassengerPickupDate': 'passenger_po_date',
-    'PassengerPickupZip': 'passenger_po_zip',
-    'PassengerDropoffDate': 'passenger_do_date',
-    'PassengerDropoffZip': 'passenger_do_zip',
+    'PassengerPickupDate': 'pu_date',
+    'PassengerPickupZip': 'pu_zip',
+    'PassengerDropoffDate': 'do_date',
+    'PassengerDropoffZip': 'do_zip',
     'TotalAmountPaid': 'trip_fare',
     'Tip': 'tip',
     'AppOnOrPassengerDroppedOffOSMID': 'driver_last_pdo_osmid',
     'ReqAcceptedOSMID':'req_accept_osmid',
-    'PassengerPickupOSMID':'passenger_po_osmid',
-    'PassengerDropoffOSMID':'passenger_do_osmid',
+    'PassengerPickupOSMID':'pu_osmid',
+    'PassengerDropoffOSMID':'do_osmid',
 }
 
 TRIP_TIME_COL = {
     'req_date': 'req_time',
-    'req_accept_date': 'accept_time',
-    'passenger_po_date': 'po_time',
-    'passenger_do_date': 'do_time'
+    'req_accept_date': 'accept_time_art',
+    'pu_date': 'pu_time_art',
+    'do_date': 'do_time_art'
 }
 
 FARE_COL = {
@@ -44,27 +47,29 @@ FARE_COL = {
     'Tip': 'tip',
 }
 
+OUT_COLUMNS = ['pu_osmid', 'do_osmid', 'req_time', 'pu_taz', 'do_taz','pu_lon', 'pu_lat', 'do_lon', 'do_lat',
+               'accept_time_art', 'pu_time_art', 'do_time_art', 'trip_fare', 'tip']
+
 # trip time = pax_do - pax_po (pick up -> drop off)
 # total trip time = pax_do - req_date (request time -> drop off)
 # filter by request date
 
 class DataLoader:
-    def __init__(self, request_file_path, osm_file_path=PATH_ROAD, randomize_position=True):
+    def __init__(self, request_file_path):
 
         self.request_df = self.load_request_data(request_file_path, COLUMN_FILTER_COL)
-        drop_col = [list(COLUMN_FILTER_COL.items())[-2][1], list(COLUMN_FILTER_COL.items())[-1][1]]
-        self.request_df = self.request_df.dropna(subset=drop_col).reset_index(drop=True)
+        self.pax_osmid_col = ['pu_osmid', 'do_osmid'] # [list(COLUMN_FILTER_COL.items())[-2][1], list(COLUMN_FILTER_COL.items())[-1][1]] #['passenger_pu_osmid', 'passenger_do_osmid']
+        self.pax_zip_col = ['pu_zip', 'do_zip']
+        self.pax_taz_col = ['pu_taz', 'do_taz']
+        # self.request_df = self.request_df.dropna(subset=drop_col).reset_index(drop=True)
 
-        self.request_df, self.error_df = self.process_datatime(self.request_df, TRIP_TIME_COL)
+        self.request_df, self.error_df = self.process_datetime(self.request_df, TRIP_TIME_COL)
 
         if len(self.error_df) > 0:
             timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
             error_output_path = os.path.join(PATH_OUTPUT, f'error_{timestamp}')
             self.error_df.to_csv(error_output_path)
             raise Warning(f'check request error data {error_output_path}')
-
-        if randomize_position:
-            self.randomize_req_coordinate_based_on_zip()
 
     @staticmethod
     def load_request_data(file_path, column_rename_dict):
@@ -83,7 +88,7 @@ class DataLoader:
         return df_renamed
 
     @staticmethod
-    def process_datatime(request_df, time_column_dict):
+    def process_datetime(request_df, time_column_dict):
         # time_column = list(time_column_dict.keys())
 
         req_date_col = list(time_column_dict.items())[0][0]
@@ -121,21 +126,141 @@ class DataLoader:
 
         return request_df, error_checker_df
 
-    def randomize_req_coordinate_based_on_zip(self):
-        """
-        Randomly generate lat/lon coordinates within pickup and dropoff zip code boundaries.
-        Adds two new columns: 'passenger_po_pos' and 'passenger_do_pos'
-        """
-        def safe_random(zip_code):
-            try:
-                return get_random_coordinate(str(zip_code))
-            except Exception as e:
-                print(f"[ZIP ERROR] Zip {zip_code} failed: {e}")
-                return None
+    def populate_missing_osmid(self, graph, zip_bounds):
+        for osmid_col, zip_col in zip(self.pax_osmid_col, self.pax_zip_col):
+            missing_mask = self.request_df[osmid_col].isna()
 
-        print("randomized requests po and do position")
-        self.request_df['passenger_po_pos'] = self.request_df['passenger_po_zip'].apply(safe_random)
-        self.request_df['passenger_do_pos'] = self.request_df['passenger_do_zip'].apply(safe_random)
+            if missing_mask.any():
+                print(f"\nPopulating missing values for {osmid_col} using ZIP column {zip_col}...")
+
+                for idx in tqdm(self.request_df[missing_mask].index, desc=f"Assigning {osmid_col}"):
+                    zipcode = self.request_df.at[idx, zip_col]
+
+                    try:
+                        lat, lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        nearest_node = ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+                        self.request_df.at[idx, osmid_col] = nearest_node
+
+                    except Exception as e:
+                        print(f"\t[Warning] Could not assign OSMID for index {idx} (zip: {zipcode}): {e}")
+
+    def populate_missing_osmid_vectorized(self, graph, zip_bounds):
+
+        for osmid_col, zip_col in zip(self.pax_osmid_col, self.pax_zip_col):
+            missing_idx = self.request_df[self.request_df[osmid_col].isna()].index
+
+            if len(missing_idx) > 0:
+                print(f"Populating missing values for {osmid_col} using zip column {zip_col}...")
+
+                def assign_node(zipcode):
+                    try:
+                        lat, lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        return ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+                    except:
+                        return pd.NA
+
+                self.request_df.loc[missing_idx, osmid_col] = (
+                    self.request_df.loc[missing_idx, zip_col]
+                    .map(assign_node)
+                    .astype("Int64")
+                )
+
+    def populate_missing_osmid_original(self, graph, zip_bounds):
+        for osmid_col, zip_col in zip(self.pax_osmid_col, self.pax_zip_col):
+            missing_mask = self.request_df[osmid_col].isna()
+
+            if missing_mask.any():
+                print(f"Populating missing values for {osmid_col} using zip column {zip_col}...")
+
+                for idx in self.request_df[missing_mask].index:
+                    if idx%100 == 0:
+                        print(f"{osmid_col} at index: {idx}")
+                    zipcode = self.request_df.at[idx, zip_col]
+
+                    try:
+                        lat,lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        nearest_node = ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+                        self.request_df.at[idx, osmid_col] = nearest_node
+
+                    except Exception as e:
+                        print(f"\t[Warning] Could not assign OSMID for index {idx} (zip: {zipcode}): {e}")
+
+    def populate_unassigned_taz(self, graph, zip_bounds):
+        for taz_col, osmid_col, zip_col in zip(self.pax_taz_col, self.pax_osmid_col, self.pax_zip_col):
+            missing_mask = self.request_df[taz_col].isna()
+
+            if missing_mask.any():
+                print(f"Populating missing values for {taz_col} using ZIP column {zip_col}...")
+
+                for idx in tqdm(self.request_df[missing_mask].index, desc=f"Assigning {taz_col}"):
+                    zipcode = self.request_df.at[idx, zip_col]
+
+                    try:
+                        lat, lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        nearest_node = ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+
+                        self.request_df.at[idx, osmid_col] = nearest_node
+                        self.request_df.at[idx, taz_col] = graph.nodes[nearest_node].get('taz', None)
+
+                    except Exception as e:
+                        print(f"\t[Warning] Could not assign TAZ for index {idx} (zip: {zipcode}): {e}")
+
+    def populate_unassigned_taz_vectorized(self, graph, zip_bounds):
+        """
+        Vectorized TAZ assignment using random coordinates from ZIP and nearest OSM node lookup.
+        Follows the same logic as `populate_missing_osmid_vectorized`, with added TAZ mapping.
+        """
+        node_to_taz = nx.get_node_attributes(graph, 'taz')
+
+        for taz_col, osmid_col, zip_col in zip(self.pax_taz_col, self.pax_osmid_col, self.pax_zip_col):
+            missing_idx = self.request_df[self.request_df[taz_col].isna()].index
+
+            if len(missing_idx) > 0:
+                print(f"Populating missing values for {taz_col} using zip column {zip_col}...")
+
+                def assign_node_and_taz(zipcode):
+                    try:
+                        lat, lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        node = ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+                        taz = node_to_taz.get(node, pd.NA)
+                        return pd.Series([node, taz])
+                    except:
+                        return pd.Series([pd.NA, pd.NA])
+
+                node_taz_df = self.request_df.loc[missing_idx, zip_col].map(assign_node_and_taz).to_list()
+                node_taz_df = pd.DataFrame(node_taz_df, index=missing_idx, columns=[osmid_col, taz_col]).astype(
+                    "Int64")
+
+                self.request_df.loc[missing_idx, osmid_col] = node_taz_df[osmid_col]
+                self.request_df.loc[missing_idx, taz_col] = node_taz_df[taz_col]
+
+    def populate_unassigned_taz_original(self, graph, zip_bounds):
+
+        for taz_col, osmid_col, zip_col in zip(self.pax_taz_col, self.pax_osmid_col, self.pax_zip_col):
+            missing_mask = self.request_df[taz_col].isna()
+
+            if missing_mask.any():
+                print(f"Populating missing values for {taz_col} using zip column {zip_col}...")
+
+                for idx in self.request_df[missing_mask].index:
+                    if idx%100 == 0:
+                        print(f"{taz_col} at index: {idx}")
+                    zipcode = self.request_df.at[idx, zip_col]
+
+                    try:
+                        lat,lon = get_random_coordinate_cached(zipcode, zip_bounds)
+                        nearest_node = ox.distance.nearest_nodes(graph, X=lon, Y=lat)
+                        self.request_df.at[idx, osmid_col] = nearest_node
+                        self.request_df.at[idx, taz_col] = graph.nodes[nearest_node]['taz']
+
+                    except Exception as e:
+                        print(f"\t[Warning] Could not assign TAZ for index {idx} (zip: {zipcode}): {e}")
+
+    def create_zip_bounds(self):
+        zipcodes = np.unique(self.request_df[self.pax_zip_col].values.ravel())
+        zip_bounds = build_zipcode_bounds(zipcodes)
+
+        return zip_bounds
 
     def filter_requests_based_on_taz(self, taz_gdf):
         """
@@ -144,44 +269,116 @@ class DataLoader:
         from shapely.geometry import Point
 
         # Create GeoDataFrames for PO and DO points
-        po_geom = self.request_df['passenger_po_pos'].apply(lambda x: Point(x[1], x[0]) if pd.notnull(x) else None)
+        pu_geom = self.request_df['passenger_pu_pos'].apply(lambda x: Point(x[1], x[0]) if pd.notnull(x) else None)
         do_geom = self.request_df['passenger_do_pos'].apply(lambda x: Point(x[1], x[0]) if pd.notnull(x) else None)
 
-        po_gdf = gpd.GeoDataFrame(self.request_df.copy(), geometry=po_geom, crs='EPSG:4326')
+        pu_gdf = gpd.GeoDataFrame(self.request_df.copy(), geometry=pu_geom, crs='EPSG:4326')
         do_gdf = gpd.GeoDataFrame(self.request_df.copy(), geometry=do_geom, crs='EPSG:4326')
 
         # Spatial join with TAZ for both pickup and dropoff
-        po_in_taz = gpd.sjoin(po_gdf, taz_gdf, how='inner', predicate='within')
+        pu_in_taz = gpd.sjoin(pu_gdf, taz_gdf, how='inner', predicate='within')
         do_in_taz = gpd.sjoin(do_gdf, taz_gdf, how='inner', predicate='within')
 
         # Find common indices that exist in both joins
-        common_idx = po_in_taz.index.intersection(do_in_taz.index)
+        common_idx = pu_in_taz.index.intersection(do_in_taz.index)
 
         # Filter original request_df based on common indices
         self.request_df = self.request_df.loc[common_idx].reset_index(drop=True)
 
-    def assign_osmid_to_requests(self, nodes_df):
+    def map_request_to_taz(self, taz_file_path):
+
+        with open(taz_file_path, "r") as f:
+            taz_map = json.load(f)
+
+        # reverse look up
+        node_to_taz = {}
+        for taz_id, node_list in taz_map.items():
+            for node in node_list:
+                node_to_taz[int(node)] = int(taz_id)
+
+        self.request_df['pu_taz'] = self.request_df['pu_osmid'].map(node_to_taz)
+        self.request_df['do_taz'] = self.request_df['do_osmid'].map(node_to_taz)
+
+    def map_request_to_coordinates(self, graph):
+
+        pu_osmid_col = self.pax_osmid_col[0]
+        do_osmid_col = self.pax_osmid_col[1]
+
+        # Extract node attributes into lookup dicts
+        node_x = nx.get_node_attributes(graph, 'x')
+        node_y = nx.get_node_attributes(graph, 'y')
+
+        # Map OSMIDs to coordinates
+        self.request_df['pu_lon'] = self.request_df[pu_osmid_col].map(node_x)
+        self.request_df['pu_lat'] = self.request_df[pu_osmid_col].map(node_y)
+
+        self.request_df['do_lon'] = self.request_df[do_osmid_col].map(node_x)
+        self.request_df['do_lat'] = self.request_df[do_osmid_col].map(node_y)
+
+    def filter_by_time(self, dates=[2019,9,-1], save_weekdays=[1,2,3,4,5], start_time=7*3600, end_time=10*3600):
         """
-        Assigns the nearest OSMID to passenger_po_pos and passenger_do_pos using KDTree.
-        Adds two new columns: passenger_po_osmid_nearest and passenger_do_osmid_nearest.
+        Filters request_df based on:
+        - Flexible date spec: [year, month(s), day(s)]
+        - Only includes weekdays in `save_weekdays`
+        - Only keeps rows where req_time is within start_time to end_time
         """
-        from scipy.spatial import KDTree
-        import numpy as np
+        from collections.abc import Iterable
 
-        # Build KDTree from node coordinates (lon, lat)
-        node_coords = nodes_df[['x', 'y']].values  # (lon, lat)
-        node_osmids = nodes_df['osmid'].values
-        kdtree = KDTree(node_coords)
+        def ensure_list(x):
+            return list(x) if isinstance(x, Iterable) and not isinstance(x, str) else [x]
 
-        def find_nearest_osmid(pos):
-            if pd.isnull(pos):
-                return None
-            lon, lat = pos[1], pos[0]  # (lat, lon) → (lon, lat)
-            dist, idx = kdtree.query([lon, lat])
-            return node_osmids[idx]
+        df = self.request_df.copy()
 
-        self.request_df['passenger_po_osmid_nearest'] = self.request_df['passenger_po_pos'].apply(find_nearest_osmid)
-        self.request_df['passenger_do_osmid_nearest'] = self.request_df['passenger_do_pos'].apply(find_nearest_osmid)
+        # Ensure datetime conversion only once
+        dt_series = pd.to_datetime(df['req_date'])
+        df['req_date_only'] = dt_series.dt.date
+        df['weekday'] = dt_series.dt.weekday
+        df['year'] = dt_series.dt.year
+        df['month'] = dt_series.dt.month
+        df['day'] = dt_series.dt.day
+
+        # Apply filters - Build mask from date rules
+        date_mask = pd.Series(False, index=df.index)
+
+        years, months, days = dates
+        years = ensure_list(years)
+        months = ensure_list(months)
+        days = ensure_list(days)
+
+        for y in years:
+            for m in months:
+                for d in days:
+                    if d == -1:
+                        match = (df['year'] == y) & (df['month'] == m)
+                    else:
+                        match = (df['year'] == y) & (df['month'] == m) & (df['day'] == d)
+                    date_mask |= match
+
+        df = df[
+            date_mask &
+            (df['weekday'].isin(save_weekdays)) &
+            (df['req_time'] >= start_time) &
+            (df['req_time'] < end_time)
+            ]
+
+        self.request_df = df.sort_values(by="req_date").reset_index(drop=True)
+        print(f"filtered by time to dataframe of size {len(self.request_df)}")
+
+    def save_as_episodes(self, save_path=PATH_EPISODE, out_columns=OUT_COLUMNS):
+        """
+        Saves filtered episodes from request_df into daily CSV files.
+        Each file contains requests within a specific time range, grouped by req_date.
+        """
+        grouped = self.request_df.groupby("req_date_only")
+
+        for date, group in grouped:
+            # Filter by request time range
+            episode_df = group[out_columns]
+
+            # Save
+            filename = f"episode_{date}.csv"
+            episode_df.to_csv(os.path.join(save_path, filename), index=False)
+            print(f"[✓] Saved: {filename} ({len(episode_df)} rows)")
 
 
 class RoadNetworkBuilder:
@@ -210,7 +407,7 @@ class RoadNetworkBuilder:
 
         # Progress logging for edges
         for i, row in self.edges_df.iterrows():
-            if i % 10000 == 0:
+            if (i % 10000) == 0:
                 print(f"\tBuilding edges - osmid at {i}")
 
             # Add edges with attributes
@@ -280,56 +477,38 @@ class RoadNetworkBuilder:
         plt.ylabel("Latitude")
         plt.show()
 
-def map_osmid_to_coordinates(request_df, nodes_df):
-    import networkx as nx
-
-    osmid_columns = [
-        'passenger_po_osmid',
-        'passenger_do_osmid'
-    ]
-
-    for col in osmid_columns:
-        # Define the new column name
-        coord_col = col.replace('_osmid', '_coordinate')
-
-        # Map OSMID to (lat, lon) using the graph
-        def get_coord(osmid):
-            try:
-                node_data = nodes_df[nodes_df.osmid==int(osmid)]
-                coordinates = (node_data['y'].iloc[0], node_data['x'].iloc[0])
-                return coordinates  # (lat, lon)
-            except IndexError:
-                return None  # OSM ID not in graph
-
-
-        request_df[coord_col] = request_df[col].apply(get_coord)
-
-    return request_df
-
+DEFAULT_GRAPH_PATH = "./data/road_network/sf_road_network.graphml"
 
 def main():
-    file_path = os.path.join(PATH_DATA, 'sample_data0.csv')
+    file_path = os.path.join(PATH_DATA, 'cb_match_osm_data_part1_2.csv') #'sample_data0.csv'
     dl = DataLoader(request_file_path=file_path)
-    rn = RoadNetworkBuilder()
-    # rn.visualize_network()
+    # rn = RoadNetworkBuilder()
+    graph = ox.load_graphml(DEFAULT_GRAPH_PATH)
+    zip_bounds = load_zipcode_bounds('./utils/zip_bounds.json')
 
-    nodes_df = pd.read_csv(os.path.join(PATH_ROAD, 'nodes.csv'))
-    edges_df = pd.read_csv(os.path.join(PATH_ROAD, 'edges.csv'))
+    # dl.filter_by_time(dates=[2019,9,-1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+    dl.filter_by_time(dates=[2019,9,17], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+    # dl.filter_by_time(dates=[-1, -1, -1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+    dl.populate_missing_osmid(graph, zip_bounds)
 
-    request_df = map_osmid_to_coordinates(dl.request_df, nodes_df)
+    dl.map_request_to_taz(taz_file_path="./data/taz_shape/taz_nodes.json")
 
-    # filter requests
-    dl.filter_requests_based_on_taz(rn.taz_gdf)
+    dl.populate_unassigned_taz(graph, zip_bounds)
 
-    # assign osmid
-    dl.assign_osmid_to_requests(rn.nodes_df)
+    dl.map_request_to_coordinates(graph)
 
-if __name__ == "data_preprocess":
-    # main()
-    rn = RoadNetworkBuilder()
-    print("data_preprocess")
+    dl.save_as_episodes(save_path=PATH_EPISODE,
+                        out_columns=OUT_COLUMNS)
 
-rn = RoadNetworkBuilder()
+
+    # # filter requests
+    # dl.filter_requests_based_on_taz(rn.taz_gdf)
+    #
+    # # assign osmid
+    # dl.assign_osmid_to_requests(rn.nodes_df)
+
+if __name__ == "__main__":
+    main()
 
 def filter_date(self, request_df, time_column_dict):
     return 0
