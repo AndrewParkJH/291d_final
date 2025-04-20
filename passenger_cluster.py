@@ -17,6 +17,7 @@ class clusterGenerator:
 
     def euclidean_distance(self):
 
+        # pseudo-code
         return 0
 
     def create_subgraph(self):
