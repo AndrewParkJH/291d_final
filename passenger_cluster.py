@@ -15,10 +15,10 @@ class clusterGenerator:
         """
         self.request_df = aggregated_request_df
 
-    def euclidean_distance(self):
-
-        # pseudo-code
-        return 0
+    def euclidean_distance(self, coord1, coord2):
+        x1, y1 = coord1
+        x2, y2 = coord2
+        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
     def create_subgraph(self):
         """
