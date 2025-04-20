@@ -33,6 +33,11 @@ class clusterGenerator:
     
 
     def create_subgraph(self):
+
+        G = nx.Graph()
+        
+        for idx, row in self.request_df.iterrows():
+            G.add_node(idx, **row.to_dict())
         """
         pseudo-code
         
