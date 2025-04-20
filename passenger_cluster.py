@@ -1,5 +1,8 @@
 import pandas as pd
 import networkx as nx
+import math
+from math import radians, sin, cos, sqrt, atan2
+
 
 class clusterGenerator:
     def __init__(self, simulator, current_request_df):
@@ -15,10 +18,19 @@ class clusterGenerator:
         """
         self.request_df = aggregated_request_df
 
-    def euclidean_distance(self, coord1, coord2):
-        x1, y1 = coord1
-        x2, y2 = coord2
-        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    def euclidean_distance(self, coord1, coord2): # calculate it based on latitude and longitude
+        R = 6371000  # Earth radius in meters
+        lon1, lat1 = map(radians, coord1)
+        lon2, lat2 = map(radians, coord2)
+
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2 # Haversine formula
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        return R * c 
+    
 
     def create_subgraph(self):
         """
