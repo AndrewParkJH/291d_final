@@ -45,20 +45,30 @@ class clusterGenerator:
 
         # Step 2: Add request nodes and Euclidean edges
         G.add_nodes_from(self.request_df.index)
-        G.add_edges_from(matches)
+
 
         # Step 3: Refine edges using shortest travel time in road network
         valid_edges = []
-        for i, j in G.edges():
+        for i, j in matches:
             try:
-                osmid_i = self.request_df.at[i, 'pu_osmid']
-                osmid_j = self.request_df.at[j, 'pu_osmid']
-                travel_time = self.simulator.network.find_shortest_travel_time(osmid_i, osmid_j)
-                if travel_time <= self.max_walk_time:
-                    G[i][j]['weight'] = travel_time
+                # Pickup 
+                pu_osmid_i = self.request_df.at[i, 'pu_osmid']
+                pu_osmid_j = self.request_df.at[j, 'pu_osmid']
+                pu_travel_time = self.simulator.network.find_shortest_travel_time(pu_osmid_i, pu_osmid_j)
+
+                # Dropoff 
+                do_osmid_i = self.request_df.at[i, 'do_osmid']
+                do_osmid_j = self.request_df.at[j, 'do_osmid']
+                do_travel_time = self.simulator.network.find_shortest_travel_time(do_osmid_i, do_osmid_j)
+
+                # PU vs. DO
+                if pu_travel_time <= self.max_walk_time and do_travel_time <= self.max_walk_time:
+                    max_travel_time = max(pu_travel_time, do_travel_time)
+                    G.add_edge(i, j, weight=max_travel_time)
                     valid_edges.append((i, j))
+
             except Exception as e:
-                print(f"Edge ({i},{j}) skipped due to error: {e}")
+                print(f"Skipping ({i}, {j}) due to error: {e}")
 
         # Step 4: Keep only valid edges (filtered by walking time)
         G = G.edge_subgraph(valid_edges).copy()
