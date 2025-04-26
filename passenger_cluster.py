@@ -75,10 +75,40 @@ class clusterGenerator:
 
         return G
 
-    def extract_clusters(self):
-        """
-        After graph construction, extract connected components as request clusters
-        """
-        G = self.create_subgraph()
-        clusters = list(nx.connected_components(G))  # each is a set of node indices
-        return clusters
+def extract_clusters(self):
+    """
+    output format: for each cluster:
+    - request indices
+    - representative PU point (lon, lat)
+    - representative DO point (lon, lat)
+    """
+    G = self.create_subgraph()
+    clusters = list(nx.connected_components(G))
+
+    output_clusters = []
+
+    for cluster in clusters:
+        cluster_list = list(cluster)  
+
+        pu_lons = self.request_df.loc[cluster_list, 'pu_lon'].values
+        pu_lats = self.request_df.loc[cluster_list, 'pu_lat'].values
+        do_lons = self.request_df.loc[cluster_list, 'do_lon'].values
+        do_lats = self.request_df.loc[cluster_list, 'do_lat'].values
+
+        # take centroid
+        pu_lon_mean = pu_lons.mean()
+        pu_lat_mean = pu_lats.mean()
+        do_lon_mean = do_lons.mean()
+        do_lat_mean = do_lats.mean()
+
+        # Package everything
+        output = {
+            'requests': cluster_list,           
+            'pickup_point': (pu_lon_mean, pu_lat_mean),   
+            'dropoff_point': (do_lon_mean, do_lat_mean)  
+        }
+
+        output_clusters.append(output)
+
+    return output_clusters
+
