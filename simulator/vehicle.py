@@ -4,15 +4,11 @@ import numpy as np
 
 
 class Vehicle:
-    def __init__(self, env, network, vid, max_capacity=10, randomize=True):
+    def __init__(self, env, network, vid, max_capacity=10, randomize_position=True, randomize_passengers=False):
         self.env = env
         self.network = network # RoadNetwork class, RoadNetwork.graph == networkx.Graph, the road network
         self.vehicle_id = vid
         self.max_capacity = max_capacity
-        self.current_node = 0
-        self.next_node = 0
-        self.current_pos = (0,0)
-        self.next_pos = (0,0)
         self.current_num_pax = 0
         self.current_passengers = []
         self.trip_sequence = [] # list of nodes to traverse: DO of current passengers + PU/DO of new request
@@ -34,8 +30,14 @@ class Vehicle:
         """
 
         # run initialization
-        self.initialize_position(randomize=randomize)
-        self.initialize_current_passengers(randomize=randomize)
+        self.current_pos = None
+        self.next_pos = None
+        self.current_node = None
+        self.next_node = None
+
+        self.initialize_position(randomize=randomize_position)
+        self.initialize_current_passengers(randomize=randomize_passengers)
+
 
 
     def add_request(self, request):
@@ -52,7 +54,6 @@ class Vehicle:
             "trajectory": self.trip_sequence,
             "capacity": self.max_capacity - self.current_num_pax
         }
-    import numpy as np
 
     def update_state(self):
         if self.new_request_received:
@@ -65,7 +66,6 @@ class Vehicle:
         Builds a time matrix T_ij where T_ij = estimated travel time from trip i's destination to trip j's destination.
         If no trips are present, returns a max_capacity x max_capacity zero matrix.
         """
-        num_trips = len(self.trips)
         time_matrix = np.zeros((self.max_capacity, self.max_capacity), dtype=np.float32)
 
         for i, trip_i in enumerate(self.trips):
@@ -93,13 +93,16 @@ class Vehicle:
         # For example: negative of total delay
         return -sum(trip["t_r^d"] - trip["t_r^p"] for trip in self.trips)
 
-    def initialize_position(self, pos=0, randomize=True):
+    def initialize_position(self, pos=(-122.41989513021899, 37.792216322686436), randomize=True):
         if randomize:
             self.current_node = random.choice(list(self.network.graph.nodes)) # assign random position
             self.current_pos = self.network.get_node_coordinate(self.current_node)
 
         else:
             self.current_pos = pos
+            self.next_pos = pos
+            self.current_node = self.network.find_nearest_node_from_coodrinate(self.current_pos)
+            self.next_node = self.network.find_nearest_node_from_coodrinate(self.next_pos)
 
     def initialize_current_passengers(self, count=0, randomize=True):
         if randomize:

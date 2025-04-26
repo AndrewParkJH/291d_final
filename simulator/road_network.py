@@ -6,27 +6,31 @@ import os
 DEFAULT_GRAPH_PATH = "./data/road_network/sf_road_network.graphml"
 
 class RoadNetwork:
-    def __init__(self, env, num_vehicles=40, vehicle_capacity=10, randomize_vehicles=True, graph_path=DEFAULT_GRAPH_PATH):
+    def __init__(self, env, num_vehicles=40, vehicle_capacity=10,
+                 randomize_vehicle_position=True,
+                 randomize_vehicle_passengers=False,
+                 randomize_vehicles=True, graph=None):
         self.env = env
-        self.graph = ox.load_graphml(graph_path)
-        self.vehicles = self.initialize_vehicle(num_vehicles, vehicle_capacity, randomize_vehicles)
+        self.graph = ox.load_graphml(DEFAULT_GRAPH_PATH) if graph is None else graph
+        self.vehicles = self.initialize_vehicle(num_vehicles, vehicle_capacity, randomize_vehicle_position, randomize_vehicle_passengers)
         self.max_vehicle_capacity = vehicle_capacity
 
-        self.one = 0
+        self.network_state = None
 
     def update_congestion(self):
         # update travel time in each TAZ
 
         return 0
 
-    def initialize_vehicle(self, num_vehicles, vehicle_capacity, randomize_vehicles):
+    def initialize_vehicle(self, num_vehicles, vehicle_capacity, randomize_position, randomize_passengers):
         """
         initializes vehicle positions
         """
         vehicles = []
 
         for i in range(1, num_vehicles+1):
-            vehicle = Vehicle(env=self.env, network=self, vid=i,max_capacity=vehicle_capacity, randomize=randomize_vehicles)
+            vehicle = Vehicle(env=self.env, network=self, vid=i,max_capacity=vehicle_capacity,
+                              randomize_position=randomize_position, randomize_passengers=randomize_passengers)
             vehicles.append(vehicle)
 
         return vehicles
@@ -39,6 +43,13 @@ class RoadNetwork:
         for vehicle in self.vehicles:
             state.append((vehicle.current_pos, vehicle.next_pos, vehicle.current_num_pax))
 
+    def update_state(self):
+        """
+        Update state based on the action of the vehicle
+        :return:
+        """
+
+        return 0
 
     def return_state(self):
         """

@@ -1,34 +1,49 @@
 import simpy
 from simulator.road_network import RoadNetwork
+from RL.agents.heuristics import dispatch_heuristics, vehicle_path_plan_heuristics
+import osmnx as ox
 import os
 import pandas as pd
 
 BASE_DIR = os.curdir
-DATA_DIR = os.path.join(BASE_DIR, "data/episode_2019-09-17.csv")
 GRAPH_FILE_DIR = os.path.join(BASE_DIR, "data/road_network/sf_road_network.graphml")
 
-class ShuttleSim():
-    def __init__(self, trip_date, simulation_start_time=7*3600, simulation_end_time=36000,
-                 accumulation_time=120, num_vehicles=40, randomize_vehicle_position=True,
+class ShuttleSim:
+    def __init__(self, env=None, network=None, graph = None, request_df=None,
+                 trip_date='2019-09-17', simulation_start_time=7*3600, simulation_end_time=36000,
+                 accumulation_time=120, num_vehicles=40,
+                 randomize_vehicle_position=True,
+                 randomize_vehicle_passengers=False,
                  vehicle_capacity=10, debug=False):
-        self.env = None
-        self.network = None
-        self.request_df = None
-        self._initialize_simulation()
 
+        self.env = env
+        self.network = network
+
+        # read request_df
+        data_dir = os.path.join(BASE_DIR, f"data/episode_{trip_date}.csv")
+        self.graph = ox.load_graphml(GRAPH_FILE_DIR) if graph is None else graph
+        self.request_df = pd.read_csv(data_dir) if request_df is None else request_df
+
+        # simulation state data
+        self.current_request = []
+
+        # simulation parameters
         self.accumulation_time = accumulation_time
         self.start_time = simulation_start_time
         self.end_time = simulation_end_time
         self.num_vehicles = num_vehicles
-        self.randomize_vehicle_position = randomize_vehicle_position
         self.vehicle_capacity = vehicle_capacity
-
-        self.data_dir = os.path.join(BASE_DIR, f"data/episode_{trip_date}.csv")
-
         self.dispatch_trigger = None
         self.debug = debug
+        self.randomize_vehicle_position = randomize_vehicle_position
+        self.randomize_vehicle_passengers = randomize_vehicle_passengers
 
-        self.current_request = []
+    def start_simulation(self):
+        self.env.process(self.step(dispatch_heuristics, vehicle_path_plan_heuristics))
+        self.env.run(until=self.end_time)
+
+    def reset(self):
+        self._initialize_simulation()
 
     def step(self, dispatch_fn, vehicle_policy_fn):
         print(f"[{self.env.now}] Tick")
@@ -80,9 +95,9 @@ class ShuttleSim():
         self.network = RoadNetwork(env=self.env,
                                    num_vehicles=self.num_vehicles,
                                    vehicle_capacity=self.vehicle_capacity,
-                                   randomize_vehicles=self.randomize_vehicle_position,
-                                   graph_path=GRAPH_FILE_DIR)
-        self.request_df = pd.read_csv(os.path.join(DATA_DIR))
+                                   randomize_vehicle_position=self.randomize_vehicle_position,
+                                   randomize_vehicle_passengers=self.randomize_vehicle_passengers,
+                                   graph=self.graph)
 
     def get_vehicle_state(self):
         vehicle_state = []
