@@ -1,11 +1,12 @@
 import random
 import networkx as nx
+import numpy as np
+
 
 class Vehicle:
     def __init__(self, env, network, vid, max_capacity=10, randomize=True):
         self.env = env
         self.network = network # RoadNetwork class, RoadNetwork.graph == networkx.Graph, the road network
-
         self.vehicle_id = vid
         self.max_capacity = max_capacity
         self.current_node = 0
@@ -13,7 +14,11 @@ class Vehicle:
         self.current_pos = (0,0)
         self.next_pos = (0,0)
         self.current_num_pax = 0
+        self.current_passengers = []
+        self.trip_sequence = [] # list of nodes to traverse: DO of current passengers + PU/DO of new request
         self.trips = [] # list containing dictionary variables
+        self.new_request_received = False
+        self.d_time_matrix = None
         """
         Trip Set: 
         trip_set.append({
@@ -27,12 +32,66 @@ class Vehicle:
         "t_r^*": expected_arrival_time-30  # Earliest drop-off time
         })
         """
-        self.current_passengers = []
 
         # run initialization
         self.initialize_position(randomize=randomize)
         self.initialize_current_passengers(randomize=randomize)
 
+
+    def add_request(self, request):
+        self.trips.append(request)
+
+    def has_request(self):
+        return len(self.trips) > 0
+
+    def get_state(self):
+        state = []
+
+
+        return {
+            "trajectory": self.trip_sequence,
+            "capacity": self.max_capacity - self.current_num_pax
+        }
+    import numpy as np
+
+    def update_state(self):
+        if self.new_request_received:
+            self.d_time_matrix = self.compute_destination_time_matrix()
+
+
+
+    def compute_destination_time_matrix(self):
+        """
+        Builds a time matrix T_ij where T_ij = estimated travel time from trip i's destination to trip j's destination.
+        If no trips are present, returns a max_capacity x max_capacity zero matrix.
+        """
+        num_trips = len(self.trips)
+        time_matrix = np.zeros((self.max_capacity, self.max_capacity), dtype=np.float32)
+
+        for i, trip_i in enumerate(self.trips):
+            for j, trip_j in enumerate(self.trips):
+                if i != j:
+                    time_matrix[i, j] = self.network.find_shortest_travel_time(trip_i["d_r"], trip_j["o_r"])
+                else:
+                    time_matrix[i, j] = 0.0  # or np.inf if you want to signal invalid move
+
+        return time_matrix.flatten()
+
+
+    def apply_policy_action(self, action):
+        self.trips = self.reorder_trips_based_on_action(action)
+
+
+    def advance_to_next_stop(self):
+        if self.trips:
+            next_trip = self.trips.pop(0)
+            travel_time = -1
+            # self.network.find_shortest_travel_time(self.current_node, next_trip["o_r"])
+            self.current_node = -1 # next_trip["o_r"]
+
+    def compute_reward(self):
+        # For example: negative of total delay
+        return -sum(trip["t_r^d"] - trip["t_r^p"] for trip in self.trips)
 
     def initialize_position(self, pos=0, randomize=True):
         if randomize:
@@ -53,7 +112,6 @@ class Vehicle:
                 self.next_pos = self.network.get_node_coordinate(self.next_node)
         else:
             self.current_num_pax = count
-
 
     def serve_itinerary(self):
         for trip in self.trips:
