@@ -75,8 +75,8 @@ class ILP_Solver:
             origin_coordinates = (request['pu_lon'], request['pu_lat'])
             destination_coordinates = (request['do_lon'], request['do_lat'])
 
-            origin_node = self.network.find_nearest_node_from_coodrinate(origin_coordinates)
-            destination_node = self.network.find_nearest_node_from_coodrinate(destination_coordinates)
+            origin_node = self.network.find_nearest_node_from_coordinate(origin_coordinates)
+            destination_node = self.network.find_nearest_node_from_coordinate(destination_coordinates)
 
             t_r_star = self.network.find_shortest_travel_time(origin_node, destination_node)
 

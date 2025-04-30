@@ -55,21 +55,25 @@ OUT_COLUMNS = ['pu_osmid', 'do_osmid', 'req_time', 'pu_taz', 'do_taz','pu_lon', 
 # filter by request date
 
 class DataLoader:
-    def __init__(self, request_file_path):
+    def __init__(self, request_file_path, raw_data=True):
 
-        self.request_df = self.load_request_data(request_file_path, COLUMN_FILTER_COL)
-        self.pax_osmid_col = ['pu_osmid', 'do_osmid'] # [list(COLUMN_FILTER_COL.items())[-2][1], list(COLUMN_FILTER_COL.items())[-1][1]] #['passenger_pu_osmid', 'passenger_do_osmid']
-        self.pax_zip_col = ['pu_zip', 'do_zip']
-        self.pax_taz_col = ['pu_taz', 'do_taz']
-        # self.request_df = self.request_df.dropna(subset=drop_col).reset_index(drop=True)
+        if raw_data:
+            self.request_df = self.load_request_data(request_file_path, COLUMN_FILTER_COL)
+            self.pax_osmid_col = ['pu_osmid', 'do_osmid'] # [list(COLUMN_FILTER_COL.items())[-2][1], list(COLUMN_FILTER_COL.items())[-1][1]] #['passenger_pu_osmid', 'passenger_do_osmid']
+            self.pax_zip_col = ['pu_zip', 'do_zip']
+            self.pax_taz_col = ['pu_taz', 'do_taz']
+            # self.request_df = self.request_df.dropna(subset=drop_col).reset_index(drop=True)
 
-        self.request_df, self.error_df = self.process_datetime(self.request_df, TRIP_TIME_COL)
+            self.request_df, self.error_df = self.process_datetime(self.request_df, TRIP_TIME_COL)
 
-        if len(self.error_df) > 0:
-            timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
-            error_output_path = os.path.join(PATH_OUTPUT, f'error_{timestamp}')
-            self.error_df.to_csv(error_output_path)
-            raise Warning(f'check request error data {error_output_path}')
+            if len(self.error_df) > 0:
+                timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
+                error_output_path = os.path.join(PATH_OUTPUT, f'error_{timestamp}')
+                self.error_df.to_csv(error_output_path)
+                raise Warning(f'check request error data {error_output_path}')
+
+        else:
+            self.request_df = pd.read_csv(request_file_path)
 
     @staticmethod
     def load_request_data(file_path, column_rename_dict):
@@ -480,28 +484,72 @@ class RoadNetworkBuilder:
 DEFAULT_GRAPH_PATH = "./data/road_network/sf_road_network.graphml"
 
 def main():
-    file_path = os.path.join(PATH_DATA, 'cb_match_osm_data_part1_2.csv') #'sample_data0.csv'
-    dl = DataLoader(request_file_path=file_path)
-    # rn = RoadNetworkBuilder()
-    graph = ox.load_graphml(DEFAULT_GRAPH_PATH)
-    zip_bounds = load_zipcode_bounds('./utils/zip_bounds.json')
+    purpose = "reformat for RL"
 
-    # dl.filter_by_time(dates=[2019,9,-1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
-    dl.filter_by_time(dates=[2019,9,17], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
-    # dl.filter_by_time(dates=[-1, -1, -1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
-    dl.populate_missing_osmid(graph, zip_bounds)
+    if purpose == "populate_missing_osmid":
+        file_path = os.path.join(PATH_DATA, 'cb_match_osm_data_part1_2.csv')  # 'sample_data0.csv'
+        dl = DataLoader(request_file_path=file_path)
+        # rn = RoadNetworkBuilder()
+        graph = ox.load_graphml(DEFAULT_GRAPH_PATH)
+        zip_bounds = load_zipcode_bounds('./utils/zip_bounds.json')
 
-    dl.map_request_to_taz(taz_file_path="./data/taz_shape/taz_nodes.json")
+        # dl.filter_by_time(dates=[2019,9,-1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+        dl.filter_by_time(dates=[2019, 9, 17], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+        # dl.filter_by_time(dates=[-1, -1, -1], save_weekdays=[1, 2, 3, 4, 5], start_time=7 * 3600, end_time=10 * 3600)
+        dl.populate_missing_osmid(graph, zip_bounds)
 
-    dl.populate_unassigned_taz(graph, zip_bounds)
+        dl.map_request_to_taz(taz_file_path="./data/taz_shape/taz_nodes.json")
 
-    dl.map_request_to_coordinates(graph)
+        dl.populate_unassigned_taz(graph, zip_bounds)
 
-    dl.save_as_episodes(save_path=PATH_EPISODE,
-                        out_columns=OUT_COLUMNS)
+        dl.map_request_to_coordinates(graph)
+
+        dl.save_as_episodes(save_path=PATH_EPISODE,
+                            out_columns=OUT_COLUMNS)
+
+    elif purpose == "reformat for RL":
+        from simulator.road_network import RoadNetworkTester
+        from utils.time_manager import TravelTimeManager
+        import random
+
+        file_path = os.path.join(PATH_EPISODE, 'episode_2019-09-17.csv')
+        dl = DataLoader(file_path, raw_data=False)
+        network = RoadNetworkTester()
+        ttm = TravelTimeManager(network, max_cache_size=20000)
+        request_df = dl.request_df
+        bad_indices = []
+
+        for idx, row in request_df.iterrows():
+            if idx % 100 == 0:
+                print(f"\t processing at counter: {idx}")
+
+            from_node = int(row['pu_osmid'])
+            to_node = int(row['do_osmid'])
+            travel_time, distance, _, _ = network.fast_network.fast_custom_dijkstra(from_node, to_node)
+            # test
+            if (not np.isfinite(travel_time)) or (travel_time<=0.1):
+                bad_indices.append(idx)
+                continue  # Skip updating invalid rows
+
+            remaining_time = travel_time * 2.5
+
+            request_df.loc[idx, 'earliest_pu_time'] = row['req_time']
+            request_df.loc[idx, 'earliest_travel_time'] = travel_time
+            request_df.loc[idx, 'remaining_time'] = remaining_time + 120
+            request_df.loc[idx, 'deadline'] = remaining_time + row['req_time'] + 120 # for time interval
+            request_df.loc[idx, 'travel_distance'] = distance
+            request_df.loc[idx, 'num_passengers'] = random.choices([1, 2, 3], weights=[0.7, 0.2, 0.1])[0]
+
+        if bad_indices:
+            print(f"\nDropping {len(bad_indices)} invalid requests (no path found)")
+            request_df.drop(index=bad_indices, inplace=True)
+            request_df.reset_index(drop=True, inplace=True)
+
+        request_df.to_csv(os.path.join(PATH_EPISODE, 'episode_2019_09_17_edited.csv'), index=False)
+        print(f"\nSaved cleaned request file to {os.path.join(PATH_EPISODE, 'episode_2019_09_17_edited.csv')}")
 
 
-    # # filter requests
+        # # filter requests
     # dl.filter_requests_based_on_taz(rn.taz_gdf)
     #
     # # assign osmid
