@@ -83,7 +83,8 @@ def extract_clusters(self):
     - representative DO point (lon, lat)
     """
     G = self.create_subgraph()
-    clusters = list(nx.connected_components(G))
+    groups = list(nx.connected_components(G))
+    clusters = [nx.enumerate_all_cliques(group) for group in groups]
 
     output_clusters = []
 
@@ -101,11 +102,27 @@ def extract_clusters(self):
         do_lon_mean = do_lons.mean()
         do_lat_mean = do_lats.mean()
 
+        # find nearest nodes for the pickup and drop off point
+        pu_node = find_nearest_node_from_coodrinate((pu_lon_mean, pu_lat_mean))
+        do_node = find_nearest_node_from_coodrinate((do_lon_mean, do_lat_mean))
+        
+        # find the time at which the cluster is formed (should this be the latest request or end of timestamp?)
+        max_req_time = self.request_df.loc[cluster_list, 'req_time'].max()
+        
+        # find the time it will take for all requests to arrive at the pickup point
+        max_walk_time = max(
+            rn.fast_network.fast_custom_dijkstra(self.request_df.at[idx, 'pu_osmid'], pu_node) / self.walking_speed
+            for idx in cluster_list
+        )
+
         # Package everything
         output = {
             'requests': cluster_list,           
-            'pickup_point': (pu_lon_mean, pu_lat_mean),   
-            'dropoff_point': (do_lon_mean, do_lat_mean)  
+            'pickup_point': (pu_lon_mean, pu_lat_mean),
+            'pickup_node': pu_node,
+            'pickup_time': max_req_time + max_walk_time,
+            'dropoff_point': (do_lon_mean, do_lat_mean),
+            'dropoff_node': do_node
         }
 
         output_clusters.append(output)
