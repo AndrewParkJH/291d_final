@@ -4,7 +4,6 @@ DEBUG = True
 
 class ShuttleSim:
     def __init__(self, env, network, run_mode, request_df, end_time=36000):
-        self.one = 0
         self.env = env
         self.network = network
         self.run_mode = run_mode #"benchmark for ilp"
@@ -20,6 +19,9 @@ class ShuttleSim:
         else:
             self.ilp_solver = None
 
+    def reset(self):
+        return 0
+
     def step(self):
         # request accumulate
         while True:
@@ -28,8 +30,6 @@ class ShuttleSim:
             yield self.env.timeout(self.accumulation_time)
 
             # add request cluster
-
-
             self.dispatch_trigger.succeed()
             print(f"[{self.env.now}] Dispatch event triggered")
 
@@ -39,9 +39,6 @@ class ShuttleSim:
                 break
 
     def request_accumulate(self):
-        """
-
-        """
         time_now = self.env.now
         time_next = self.env.now + self.accumulation_time
         # accumulate requests here...
@@ -56,7 +53,6 @@ class ShuttleSim:
         if DEBUG:
             print(f"\t{self.env.now}: triggered request accumulate for ({time_now, time_next}) -  current request {self.current_request}")
 
-
     def trigger_dispatch(self):
         while True:
             print(f"{self.env.now}: Waiting for customer accumulation")
@@ -69,7 +65,6 @@ class ShuttleSim:
                 self.ilp_solver.solve(self.current_request) # integer linear program
 
                 # reinforcement learning
-
 
                 print(f"\tbenchmark logic performed")
                 # benchmark logic here
@@ -88,5 +83,4 @@ class ShuttleSim:
         - k-means 
         - Dendogram
     - Ideally try to aim for <5 second for clustering of each TAZ
-    
     """

@@ -1,6 +1,6 @@
 import osmnx as ox
 import networkx as nx
-from simulator.vehicle import Vehicle
+from simulator.vehicle_rl import Vehicle
 
 DEFAULT_GRAPH_PATH = "./data/road_network/sf_road_network.graphml"
 
@@ -9,10 +9,11 @@ class RoadNetwork:
     def __init__(self, env, num_vehicles=40, vehicle_capacity=10,
                  randomize_vehicle_position=True,
                  randomize_vehicle_passengers=False,
-                 randomize_vehicles=True, graph=None):
+                 randomize_vehicles=True, graph=None,
+                 fast_network=None):
         self.env = env
         self.graph = ox.load_graphml(DEFAULT_GRAPH_PATH) if graph is None else graph
-        self.fast_network = FastRoadNetwork(self.graph)
+        self.fast_network = FastRoadNetwork(self.graph) if fast_network is None else fast_network
         self.vehicles = self.initialize_vehicle(num_vehicles, vehicle_capacity, randomize_vehicle_position, randomize_vehicle_passengers)
         self.max_vehicle_capacity = vehicle_capacity
 
@@ -37,14 +38,16 @@ class RoadNetwork:
         :return:
         """
         for vehicle in self.vehicles:
-            vehicle.update_state()
+            vehicle.update()
 
-    def get_vehicle_state(self):
-        vehicle_states = []
+    def get_vehicle_state(self, time_normalizer):
+        vehicle_state = []
+        info = {}
         for vehicle in self.vehicles:
-            state = vehicle.get_state()
-            vehicle_states.append(state)
-        return vehicle_states
+            state = vehicle.get_state(time_normalizer=time_normalizer)
+            vehicle_state.append(state)
+
+        return vehicle_state, info
 
     def get_vehicle_rewards(self):
         reward = []
@@ -77,6 +80,15 @@ class RoadNetwork:
         time = nx.shortest_path_length(self.graph, source=origin_node, target=destination_node, weight="travel_time")
         return time
 
+    def get_euclidean_distance(self, node1, node2):
+        """
+        Compute Euclidean distance between two nodes in the graph.
+        Nodes must contain 'x' and 'y' attributes (longitude and latitude).
+        """
+        x1, y1 = self.graph.nodes[node1]['x'], self.graph.nodes[node1]['y']
+        x2, y2 = self.graph.nodes[node2]['x'], self.graph.nodes[node2]['y']
+        return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+
 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
@@ -92,6 +104,7 @@ class FastRoadNetwork:
         self.idx_node = {idx: node for idx, node in enumerate(self.nodes)}
         self.adj_matrix = self._build_adjacency()
         self.csr_adj = csr_matrix(self.adj_matrix)
+        print("fast network initialized")
 
     def _build_adjacency(self):
         n = len(self.nodes)

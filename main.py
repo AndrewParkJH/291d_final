@@ -38,6 +38,5 @@ def main():
 
 if __name__ == "__main__":
     from data_preprocess import DataLoader
-
     main()
 

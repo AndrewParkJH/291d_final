@@ -1,5 +1,6 @@
 from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.monitor import Monitor
 from datetime import datetime
 import os
 
@@ -11,7 +12,7 @@ BASE_MODEL_DIR = './RL/training/models/'
 # MODEL_DIR = './RL/training/models/vehicle_models'
 
 class VehicleAgent:
-    def __init__(self, env, sim_kwargs, agent_name, n_env=40, total_time_steps = 200000,
+    def __init__(self, env, sim_kwargs, agent_name, total_time_steps = 200000,
                  load_model_dir=None, tensorboard_log=None):
 
         self.env = env
@@ -44,7 +45,8 @@ class VehicleAgent:
         return f"{base_name}{run_idx}"
 
     def set_up(self):
-        env = self.env(self.sim_kwargs)
+        # env = self.env(self.sim_kwargs)
+        env = Monitor(self.env(self.sim_kwargs))
 
         if self.agent == 'ppo':
             model = PPO("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1)
