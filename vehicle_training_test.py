@@ -1,5 +1,11 @@
 from RL.agents.vehicle_agent import VehicleAgent
 from RL.environment.multi_vehicle_env import MultiVehicleEnv
+import os
+import torch
+
+# Set environment variables to force CPU usage and optimize threading
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable CUDA
+torch.set_num_threads(40)  # Use 8 CPU threads, adjust as needed
 
 sim_kwargs = {
     'trip_date': "2019-09-17",
@@ -12,7 +18,13 @@ sim_kwargs = {
 }
 
 def main():
-    agent = VehicleAgent(MultiVehicleEnv, sim_kwargs, agent_name='ppo', total_time_steps=10000000)
+    agent = VehicleAgent(
+        MultiVehicleEnv, 
+        sim_kwargs, 
+        agent_name='ppo', 
+        total_time_steps=10000000,
+        n_cpu=40  # Set the number of CPU threads to use
+    )
     agent.learn()
 
 if __name__ == "__main__":

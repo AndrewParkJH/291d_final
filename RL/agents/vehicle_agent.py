@@ -3,6 +3,7 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from datetime import datetime
 import os
+import torch
 
 BASE_LOG_DIR = './RL/training/logs/'
 BASE_MODEL_DIR = './RL/training/models/'
@@ -13,7 +14,7 @@ BASE_MODEL_DIR = './RL/training/models/'
 
 class VehicleAgent:
     def __init__(self, env, sim_kwargs, agent_name, total_time_steps = 200000,
-                 load_model_dir=None, tensorboard_log=None):
+                 load_model_dir=None, tensorboard_log=None, n_cpu=4):
 
         self.env = env
         self.sim_kwargs = sim_kwargs
@@ -23,6 +24,13 @@ class VehicleAgent:
         self.tensorboard_log = tensorboard_log
         self.agent = agent_name
         self.model = None
+        self.n_cpu = n_cpu  # Number of CPU threads to use
+
+        # Force CPU usage
+        self.device = torch.device("cpu")
+        
+        # Set number of threads for PyTorch
+        torch.set_num_threads(self.n_cpu)
 
         # Automatically create new directories
         self.run_name = self.get_next_run_name()
@@ -49,9 +57,11 @@ class VehicleAgent:
         env = Monitor(self.env(self.sim_kwargs))
 
         if self.agent == 'ppo':
-            model = PPO("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1)
+            model = PPO("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1, 
+                        device=self.device, n_steps=1024, batch_size=64)
         elif self.agent == 'dqn':
-            model = DQN("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1)
+            model = DQN("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1,
+                        device=self.device, batch_size=64)
         else:
             model = None
             raise ValueError('check agent name parameter to Vehicle Agent')
@@ -86,7 +96,7 @@ class VehicleAgent:
         env = self.env(self.sim_kwargs)
         model = self.model
 
-        buffer = RolloutBuffer(rollout_len, env.observation_space, env.action_space, device=model.device)
+        buffer = RolloutBuffer(rollout_len, env.observation_space, env.action_space, device=self.device)
 
         for ep in range(num_episodes):
             obs = env.reset()
