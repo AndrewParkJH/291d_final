@@ -6,7 +6,7 @@ sim_kwargs = {
     'simulation_start_time': 7*3600,
     'simulation_end_time': 10*3600,
     'accumulation_time': 120,
-    'num_vehicles': 4,
+    'num_vehicles': 1,
     'randomize_vehicle_position': True,
     'vehicle_capacity': 10
 }

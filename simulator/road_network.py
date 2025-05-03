@@ -49,13 +49,6 @@ class RoadNetwork:
 
         return vehicle_state, info
 
-    def get_vehicle_rewards(self):
-        reward = []
-        for vehicle in self.vehicles:
-            reward.append(vehicle.compute_reward())
-
-        return reward
-
     def get_node_coordinate(self, node_id):
         """
         get (lon, lat) position of the given node

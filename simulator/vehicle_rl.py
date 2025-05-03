@@ -40,8 +40,10 @@ class Vehicle:
 
         # Reward tracking variables for RL
         self.is_invalid_action = False
+        self.invalid_action_counter = 0
         self.total_pickups = 0  # total number of passengers picked up in this epoch
         self.total_dropoffs = 0  # total number of passengers dropped off in this epoch
+        self.total_successful_dropoffs = 0 # total number of passengers dropped off in this epoch within time limit
         self.total_late_time = 0.0  # total seconds late across all passengers
         self.last_action = None
         self.last_insertion_cost = 0
@@ -82,6 +84,7 @@ class Vehicle:
         """
 
         self.is_invalid_action = False
+        self.invalid_action_counter = 0
 
         insert_o = action[0]
         insert_d = action[1]
@@ -91,13 +94,13 @@ class Vehicle:
         # check if no request is present
         if self.new_request is None:
             if insert_o != 0 or insert_d != 0:
+                self.invalid_action_counter += 1
                 self.is_invalid_action = True
-                return True
 
         else:  # if new request is present
             if insert_o == 0 or insert_d == 0:
+                self.invalid_action_counter += 1
                 self.is_invalid_action = True
-                return True
 
             else:
                 # because 0 is no-op, real indices start from 0
@@ -105,11 +108,15 @@ class Vehicle:
                 ins_d_idx = insert_d+1
 
                 # check insertion validity: 0 <= pick up insertion index < drop off insertion index <= current trip length
-                if not ((0 <= ins_o_idx) and (ins_o_idx < ins_d_idx) and (ins_d_idx <= len(self.trip_sequence))):
+                if not ins_o_idx < ins_d_idx:
                     self.is_invalid_action = True
-                    return True
+                    self.invalid_action_counter += 1
 
-                else:
+                if not ins_d_idx <= len(self.trip_sequence):
+                    self.is_invalid_action = True
+                    self.invalid_action_counter += 1
+
+                if ins_o_idx < ins_d_idx:
                     self.trip_sequence.insert(ins_o_idx, {'request_id': self.new_request['request_id'],
                                                           'node_id': self.new_request['pu_osmid'],
                                                           'stage': 'pickup'})
@@ -120,8 +127,8 @@ class Vehicle:
 
                     # reset new request after successful insertion
                     self.new_request = None
-                    self.is_invalid_action = False
-                    return False
+
+        return self.is_invalid_action
 
     def get_state(self, time_normalizer):
         """
@@ -133,6 +140,7 @@ class Vehicle:
         # Stage flag: 0 (no request), 1 (new request present)
 
         stage                   = 0 if self.new_request is None else 1
+        invalid_action_counter  = self.invalid_action_counter
         stop_count              = len(self.trip_sequence)  # trip sequence length
         remaining_cap           = self.current_num_pax  # remaining capacity
 
@@ -146,12 +154,11 @@ class Vehicle:
 
         invalid_flag            = 1 if self.is_invalid_action else 0
 
-
         if self.new_request is not None:
             # compute deadline
             current_time = self.env.now
             deadline = self.new_request["deadline"]
-            time_constraint = (deadline - current_time) / 120 # normalized by 2 minute
+            time_constraint = (deadline - current_time)
 
         # group size and remaining time
         for idx, seq in enumerate(self.trip_sequence):
@@ -170,6 +177,7 @@ class Vehicle:
                 dist_from_trip_seq_d[idx] = self.network.get_euclidean_distance(node_id, d_node)
 
         # normalization
+        invalid_action_counter      = invalid_action_counter/4
         max_distance                = max(dist_from_trip_seq_o + dist_from_trip_seq_d)
         normalized_stop_count       = stop_count / (2 * self.max_capacity)  # # trip sequence normalized
         normalized_remaining_cap    = remaining_cap / self.max_capacity  # remaining capacity normalized
@@ -184,8 +192,9 @@ class Vehicle:
         remaining_time              = [t / time_normalizer for t in remaining_time]
 
 
-        state_vec = ([stage, invalid_flag, normalized_stop_count, normalized_remaining_cap, time_constraint]
+        state_vec = ([stage, invalid_action_counter, normalized_stop_count, normalized_remaining_cap, time_constraint]
                      + dist_from_trip_seq_o + dist_from_trip_seq_d + group_size + remaining_time)
+
         return state_vec
 
     def remove_request(self, request_id):
@@ -200,70 +209,6 @@ class Vehicle:
         for ind, trip in enumerate(self.trip_sequence):
             if trip['request_id']==request_id:
                 self.trip_sequence.pop(ind)
-
-    def compute_reward(self):
-        """
-        TODO:
-            1) Penalize number of invalid actions
-            2) Reward pickup #pax
-            3) Reward drop-off #pax
-            4) Penalize current delay amount in current passengers
-            apply insertion delay reward (negative)
-            4) Penalty for delays: for each request for deadline is missed, apply growing negative reward (multiplied by group size)
-            5)
-            7) route progress shaping: making progress toward destinations.
-            8) intermediate drop off bonus: making progress toward the drop off
-        """
-        """
-        Compute the reward for the vehicle based on the last action and trip events.
-        """
-        # Initialize reward components
-        reward = 0.0
-
-        # 1. **Invalid action penalties** (e.g., wrong insertion or unnecessary action)
-        if self.is_invalid_action:
-            self.is_invalid_action = False
-            reward += -5.0
-
-            bad_insertion_act_degree = self.last_action - len(self.trip_sequence)
-            if bad_insertion_act_degree > 0:
-                reward -= bad_insertion_act_degree
-
-            return reward
-
-        # 2. **Pickup event reward** (passengers picked up and on board)
-        reward += 1.0 * self.total_pickups
-
-        # 3. **Dropoff success reward** (passengers delivered to destination)
-        reward += 3.0 * self.total_dropoffs
-
-        # 4. Current delays
-        current_late_time = 0.0
-        for request in self.current_requests.values():
-            if request['remaining_time'] < 0:
-                current_late_time += abs(request['remaining_time']) * request['num_passengers']
-        if current_late_time > 0:
-            reward -= (5.0 + 0.01 * current_late_time)
-
-        # 5. traversing progress reward
-        # remaining_segment_time = sum(self.current_segment_times)
-        # reward -= 0.01 * remaining_segment_time  # smaller total remaining time = better
-
-        # 6. Insertion cost penalty
-        reward -= 2.0 * self.last_insertion_cost  # insertion cost penalty (smaller the better)
-
-        # 2. **Insertion delay penalty** (how much the last request was delayed by routing decisions)
-        reward -= 0.01 * self.total_late_time
-
-        # Reward tracking variables
-        if self.insertion_step == -1:  # meaning no new request or successful insertion after drop off
-            self.total_pickups = 0  # total number of passengers picked up in this epoch
-            self.total_dropoffs = 0  # total number of passengers dropped off in this epoch
-            self.total_late_time = 0.0  # total seconds late across all passengers
-            self.last_insertion_cost = 0.0
-            self.last_action = None
-
-        return reward
 
     def update(self):
         """
@@ -287,8 +232,13 @@ class Vehicle:
         # start traversal
         self.next_node = next_node
         _, _, route, segment_times = self.travel_time_mgr.query(self.current_node, self.next_node)
+
         self.current_trajectory = route[1:]
         self.current_segment_times = segment_times
+        if len(route[1:]) != len(segment_times):
+            print("edge case")
+            self.travel_time_mgr.query(self.current_node, self.next_node)
+
         self.traversal_process = self.env.process(self.traverse_trajectory())
 
     def traverse_trajectory(self):
@@ -348,6 +298,9 @@ class Vehicle:
                 elif stage == 'dropoff':
                     self.total_dropoffs += request['num_passengers']  # Dropoff event
 
+                    if request['remaining_time'] > 0:
+                        self.total_successful_dropoffs += request['num_passengers']
+
                     if request['remaining_time'] < 0:
                         self.total_late_time += abs(request['remaining_time']) * request['num_passengers']
 
@@ -355,16 +308,6 @@ class Vehicle:
 
                 else:
                     raise Exception('Edge case detected while processing trip sequence')
-
-    def _handle_invalid_action(self):
-        if self.new_request is not None:
-            bad_nodes = [self.new_request['pu_osmid'], self.new_request['do_osmid']]
-            self.safe_interrupt_if_moving_to(bad_nodes)
-            self.remove_request(self.new_request_index)
-            self._remove_failed_insertion(self.new_request['request_id'])
-            self.reset_new_request()
-
-        self.is_invalid_action = False
 
     def safe_interrupt_if_moving_to(self, bad_nodes):
         """
@@ -376,23 +319,8 @@ class Vehicle:
                     f"[{self.env.now}] Vehicle {self.vehicle_id}: Interrupting traversal to node {self.next_node} due to invalid request.")
                 self.traversal_process.interrupt()
 
-    def _remove_failed_insertion(self, request_id):
-        """
-        Remove the nodes and request IDs related to a failed insertion.
-        """
-        indices_to_remove = []
-
-        for idx, req_id in enumerate(self.trip_sequence_request_id):
-            if req_id == request_id:
-                indices_to_remove.append(idx)
-
-        # Remove in reverse order to avoid messing up indexing
-        for idx in reversed(indices_to_remove):
-            del self.trip_sequence[idx]
-            del self.trip_sequence_request_id[idx]
-
-
     def _initialize_position(self, pos=(-122.41989513021899, 37.792216322686436), randomize=True):
+        random.seed(self.vehicle_id)
         if randomize:
             self.current_node = random.choice(list(self.network.graph.nodes))  # assign random position
             self.current_pos = self.network.get_node_coordinate(self.current_node)

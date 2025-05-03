@@ -12,16 +12,23 @@ class TravelTimeManager:
         key = (from_node, to_node)
         if key in self.cache:
             entry = self.cache[key]
-            return (entry['travel_time'],
-                    entry['travel_distance'],
-                    entry['path'],
-                    entry['segment_times'])
+            travel_time, travel_distance, path, segment_times = entry['travel_time'], entry['travel_distance'], entry['path'], entry['segment_times']
+
+            if len(path[1:]) != len(segment_times):
+                travel_time, travel_distance, path, segment_times = self.network.fast_network.fast_custom_dijkstra(
+                    from_node, to_node)
+                if len(path[1:]) != len(segment_times):
+                    print("debug")
+
+            return travel_time, travel_distance, path, segment_times
 
         travel_time, travel_distance, path, segment_times = self.network.fast_network.fast_custom_dijkstra(from_node, to_node)
 
         if not np.isfinite(travel_time):
             return np.inf, np.inf, [], []
             raise Exception(f"Travel time error in nodes ({from_node}, {to_node}): travel time infinity. Possibly no available path.")
+
+
 
         self.cache[key] = {'travel_time': travel_time,
                            'travel_distance': travel_distance,

@@ -81,7 +81,7 @@ class HeuristicDispatcher:
             if not vehicle.trip_sequence:
                 ref_nodes = [vehicle.current_node]
             else:
-                ref_nodes = vehicle.trip_sequence
+                ref_nodes = [vehicle.current_node]+[sequence['node_id'] for sequence in vehicle.trip_sequence]
 
             pickup_scores = []
             for req in requests:

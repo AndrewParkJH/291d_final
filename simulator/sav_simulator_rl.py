@@ -145,7 +145,7 @@ class ShuttleSim:
             rewards = [self.compute_vehicle_reward(single_obs) for single_obs in obs]
 
             # Use average reward across vehicles as the single scalar reward
-            return float(np.mean(rewards))
+            return float(np.sum(rewards))
 
         elif agent_object == 'network':
             reward = 0.0
@@ -160,28 +160,30 @@ class ShuttleSim:
         """
         # unpack observation
         stage                       = obs[0]
-        invalid_flag                = obs[1]
+        invalid_counter             = obs[1]
         normalized_stop_count       = obs[2]
         normalized_remaining_cap    = obs[3]
         time_constraint             = obs[4]
         dist_from_trip_seq_o        = obs[5:5+2*self.vehicle_capacity]
         dist_from_trip_seq_d        = obs[5+2*self.vehicle_capacity:5+4*self.vehicle_capacity]
         group_size                  = obs[5+4*self.vehicle_capacity:5+6*self.vehicle_capacity]
-        remaining_time              = obs[5+6*self.vehicle_capacity:5+8*self.vehicle_capacity]
+        normalized_remaining_time   = obs[5+6*self.vehicle_capacity:5+8*self.vehicle_capacity]
 
         # Initialize reward components
         reward = 0.0
 
         # 1. **Invalid action penalties** (e.g., wrong insertion or unnecessary action)
-        if invalid_flag == 1:
-            reward += -10.0
+        reward += -invalid_counter*10
 
         # 2. **Pickup event reward** (passengers picked up and on board)
         reward += normalized_stop_count
-
         reward += normalized_remaining_cap
 
-        reward += sum(neg_t for neg_t in remaining_time if neg_t < 0)
+        time_penalty = [x * y for x, y in zip(group_size, normalized_remaining_time)]
+        reward += sum(neg_t for neg_t in time_penalty if neg_t < 0)*20
+
+        if time_constraint < 0:
+            reward += time_constraint
 
         return reward
 
