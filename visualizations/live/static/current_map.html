@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_f7ceadd9e1d67e959ee4a9d9f94daf13 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_f7ceadd9e1d67e959ee4a9d9f94daf13" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_f7ceadd9e1d67e959ee4a9d9f94daf13 = L.map(
+                "map_f7ceadd9e1d67e959ee4a9d9f94daf13",
+                {
+                    center: [37.7749, -122.4194],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 12,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_2c5e6770bd752d3e3c084f0926bdd403 = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors \u0026copy; \u003ca href=\"https://carto.com/attributions\"\u003eCARTO\u003c/a\u003e",
+  "subdomains": "abcd",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_2c5e6770bd752d3e3c084f0926bdd403.addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+            var circle_marker_5b9ec2a2b51c889bb5286b64fb226a43 = L.circleMarker(
+                [37.7568867, -122.4413194],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_ad4c4cb7fdb93dfd45a9cad002449ff8 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_496c9d8eefd55672fc4908690722cb79 = $(`<div id="html_496c9d8eefd55672fc4908690722cb79" style="width: 100.0%; height: 100.0%;">Vehicle 0: 1/10 passengers</div>`)[0];
+                popup_ad4c4cb7fdb93dfd45a9cad002449ff8.setContent(html_496c9d8eefd55672fc4908690722cb79);
+            
+        
+
+        circle_marker_5b9ec2a2b51c889bb5286b64fb226a43.bindPopup(popup_ad4c4cb7fdb93dfd45a9cad002449ff8)
+        ;
+
+        
+    
+    
+            var circle_marker_1b5c15e687435245ce55c2291b46156f = L.circleMarker(
+                [37.8018006, -122.4466288],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_d01b4ee47edf121839ee30e56f20282b = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_9bda90e1d0ef1802eab6954eabdfba81 = $(`<div id="html_9bda90e1d0ef1802eab6954eabdfba81" style="width: 100.0%; height: 100.0%;">Vehicle 1: 2/10 passengers</div>`)[0];
+                popup_d01b4ee47edf121839ee30e56f20282b.setContent(html_9bda90e1d0ef1802eab6954eabdfba81);
+            
+        
+
+        circle_marker_1b5c15e687435245ce55c2291b46156f.bindPopup(popup_d01b4ee47edf121839ee30e56f20282b)
+        ;
+
+        
+    
+    
+            var circle_marker_64a0da4d572d1aee5c5769685eb76385 = L.circleMarker(
+                [37.7257577, -122.4152301],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_d81c121e69d3a44e886813b12c8f461f = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_d340d62778e814f3ff1ab984c54c9aed = $(`<div id="html_d340d62778e814f3ff1ab984c54c9aed" style="width: 100.0%; height: 100.0%;">Vehicle 2: 2/10 passengers</div>`)[0];
+                popup_d81c121e69d3a44e886813b12c8f461f.setContent(html_d340d62778e814f3ff1ab984c54c9aed);
+            
+        
+
+        circle_marker_64a0da4d572d1aee5c5769685eb76385.bindPopup(popup_d81c121e69d3a44e886813b12c8f461f)
+        ;
+
+        
+    
+    
+            var circle_marker_20ef072cca437945b262cc5f12ffa3bd = L.circleMarker(
+                [37.72652120000001, -122.4140861],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_fcf3b308dceb1bd19ecb28b5eab61d83 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_64a3c4051888a458aca7fc4b719b8c8c = $(`<div id="html_64a3c4051888a458aca7fc4b719b8c8c" style="width: 100.0%; height: 100.0%;">Vehicle 3: 5/10 passengers</div>`)[0];
+                popup_fcf3b308dceb1bd19ecb28b5eab61d83.setContent(html_64a3c4051888a458aca7fc4b719b8c8c);
+            
+        
+
+        circle_marker_20ef072cca437945b262cc5f12ffa3bd.bindPopup(popup_fcf3b308dceb1bd19ecb28b5eab61d83)
+        ;
+
+        
+    
+    
+            var circle_marker_99e45a1e39f698c23a3cfd725d99ac7b = L.circleMarker(
+                [37.7107631, -122.4427123],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_7bb955b09c2dc3d366ccc19bb2978e76 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_48d4072de85781f1dc73e873c1d024ba = $(`<div id="html_48d4072de85781f1dc73e873c1d024ba" style="width: 100.0%; height: 100.0%;">Vehicle 4: 3/10 passengers</div>`)[0];
+                popup_7bb955b09c2dc3d366ccc19bb2978e76.setContent(html_48d4072de85781f1dc73e873c1d024ba);
+            
+        
+
+        circle_marker_99e45a1e39f698c23a3cfd725d99ac7b.bindPopup(popup_7bb955b09c2dc3d366ccc19bb2978e76)
+        ;
+
+        
+    
+    
+            var circle_marker_81a1ef59624c787ab99dc4ec7204c93e = L.circleMarker(
+                [37.7992051, -122.419065],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_2171b2c1bff0a62d2d26ab13c956a55c = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_9269b5daae1a85da051f20c4d3dc7fe2 = $(`<div id="html_9269b5daae1a85da051f20c4d3dc7fe2" style="width: 100.0%; height: 100.0%;">Vehicle 5: 4/10 passengers</div>`)[0];
+                popup_2171b2c1bff0a62d2d26ab13c956a55c.setContent(html_9269b5daae1a85da051f20c4d3dc7fe2);
+            
+        
+
+        circle_marker_81a1ef59624c787ab99dc4ec7204c93e.bindPopup(popup_2171b2c1bff0a62d2d26ab13c956a55c)
+        ;
+
+        
+    
+    
+            var circle_marker_2614d36dc5223337588d10490f835ec4 = L.circleMarker(
+                [37.716577, -122.4511601],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_eb743f2dea1cd34764537d9cd09c3c00 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_e2e333abc14a7a6f5212c699e8a20c4d = $(`<div id="html_e2e333abc14a7a6f5212c699e8a20c4d" style="width: 100.0%; height: 100.0%;">Vehicle 6: 4/10 passengers</div>`)[0];
+                popup_eb743f2dea1cd34764537d9cd09c3c00.setContent(html_e2e333abc14a7a6f5212c699e8a20c4d);
+            
+        
+
+        circle_marker_2614d36dc5223337588d10490f835ec4.bindPopup(popup_eb743f2dea1cd34764537d9cd09c3c00)
+        ;
+
+        
+    
+    
+            var circle_marker_6d1326d11b8523c16b99f92e3ee2bbe9 = L.circleMarker(
+                [37.7264345, -122.4184214],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_8fbf05737181270abbbd56158454fcdc = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_5dcf8b7023c9e8f84700f0bfefc3625b = $(`<div id="html_5dcf8b7023c9e8f84700f0bfefc3625b" style="width: 100.0%; height: 100.0%;">Vehicle 7: 0/10 passengers</div>`)[0];
+                popup_8fbf05737181270abbbd56158454fcdc.setContent(html_5dcf8b7023c9e8f84700f0bfefc3625b);
+            
+        
+
+        circle_marker_6d1326d11b8523c16b99f92e3ee2bbe9.bindPopup(popup_8fbf05737181270abbbd56158454fcdc)
+        ;
+
+        
+    
+    
+            var circle_marker_0a90a6365f83bf8915e151f3c712f476 = L.circleMarker(
+                [37.7609018, -122.4952321],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_8db79346670476c4189e45085390450d = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_ae44dfb9fb69d46e444ff2c1076f7633 = $(`<div id="html_ae44dfb9fb69d46e444ff2c1076f7633" style="width: 100.0%; height: 100.0%;">Vehicle 8: 2/10 passengers</div>`)[0];
+                popup_8db79346670476c4189e45085390450d.setContent(html_ae44dfb9fb69d46e444ff2c1076f7633);
+            
+        
+
+        circle_marker_0a90a6365f83bf8915e151f3c712f476.bindPopup(popup_8db79346670476c4189e45085390450d)
+        ;
+
+        
+    
+    
+            var circle_marker_3dee3eb6c1c18a2a2d857f6e5a95ad0d = L.circleMarker(
+                [37.7746015, -122.3899465],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5, "stroke": true, "weight": 3}
+            ).addTo(map_f7ceadd9e1d67e959ee4a9d9f94daf13);
+        
+    
+        var popup_1f022f2d7fcea363576fdf5fedf64d9f = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_c01817c95a99e4ca44a5d7c4e8ebb3fd = $(`<div id="html_c01817c95a99e4ca44a5d7c4e8ebb3fd" style="width: 100.0%; height: 100.0%;">Vehicle 9: 6/10 passengers</div>`)[0];
+                popup_1f022f2d7fcea363576fdf5fedf64d9f.setContent(html_c01817c95a99e4ca44a5d7c4e8ebb3fd);
+            
+        
+
+        circle_marker_3dee3eb6c1c18a2a2d857f6e5a95ad0d.bindPopup(popup_1f022f2d7fcea363576fdf5fedf64d9f)
+        ;
+
+        
+    
+</script>
+</html>

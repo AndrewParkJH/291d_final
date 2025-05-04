@@ -13,6 +13,16 @@ class MultiVehicleEnv(gym.Env):
         self.simpy_env = None
         self.render_mode = None
         self.decision_epoch = kwargs_sim['accumulation_time']
+        self.visualization_data = {
+            'vehicle_states': {},
+            'request_data': [],
+            'simulation_time': 0,
+            'training_data': {
+                'latest_reward': None,
+                'latest_step': None,
+                'steps_count': 0
+            }
+        }
 
         capacity = kwargs_sim['vehicle_capacity']
         self.num_vehicles = kwargs_sim['num_vehicles']

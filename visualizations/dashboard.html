@@ -1,0 +1,174 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SAV Simulator Dashboard</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+            }
+            .dashboard {
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+            }
+            .header {
+                background-color: #2c3e50;
+                color: white;
+                padding: 10px;
+                text-align: center;
+            }
+            .content {
+                display: flex;
+                flex: 1;
+            }
+            .map-container {
+                flex: 3;
+                height: calc(100vh - 60px);
+                border-right: 1px solid #ddd;
+            }
+            .info-panel {
+                flex: 1;
+                padding: 15px;
+                overflow-y: auto;
+            }
+            .stats-container {
+                margin-bottom: 20px;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 10px;
+            }
+            .vehicle-list {
+                max-height: 300px;
+                overflow-y: auto;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+            }
+            .vehicle-item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+            }
+            .vehicle-item:hover {
+                background-color: #f5f5f5;
+            }
+            .controls {
+                padding: 10px;
+                text-align: center;
+                background-color: #f5f5f5;
+                border-top: 1px solid #ddd;
+            }
+            button {
+                padding: 8px 15px;
+                margin: 5px;
+                cursor: pointer;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 3px;
+            }
+            button:hover {
+                background-color: #2980b9;
+            }
+            iframe {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="dashboard">
+            <div class="header">
+                <h2>SAV Simulator Dashboard</h2>
+            </div>
+            <div class="content">
+                <div class="map-container">
+                    <iframe id="map-frame" src="current_map.html"></iframe>
+                </div>
+                <div class="info-panel">
+                    <div class="stats-container">
+                        <h3>Simulation Stats</h3>
+                        <p><strong>Time:</strong> <span id="sim-time">00:00:00</span></p>
+                        <p><strong>Active Vehicles:</strong> <span id="active-vehicles">0</span></p>
+                        <p><strong>Pending Requests:</strong> <span id="pending-requests">0</span></p>
+                        <p><strong>Completed Rides:</strong> <span id="completed-rides">0</span></p>
+                    </div>
+                    <h3>Vehicles</h3>
+                    <div class="vehicle-list" id="vehicle-list">
+                        <!-- Vehicle list will be populated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button id="start-btn">Start Animation</button>
+                <button id="pause-btn">Pause Animation</button>
+                <button id="record-btn">Start Recording</button>
+                <button id="stop-record-btn">Stop Recording</button>
+                <button id="refresh-btn">Refresh Map</button>
+            </div>
+        </div>
+        
+        <script>
+            // Mock data update function - would need server communication in real implementation
+            function updateDashboard() {
+                // These would come from server in real implementation
+                document.getElementById('sim-time').textContent = '07:00:00';
+                document.getElementById('active-vehicles').textContent = '20';
+                document.getElementById('pending-requests').textContent = '0';
+                document.getElementById('completed-rides').textContent = '0'; // Would need to track this
+                
+                // Refresh map iframe
+                document.getElementById('map-frame').src = 'current_map.html?' + new Date().getTime();
+                
+                // Update vehicle list - would come from server
+                const vehicleList = document.getElementById('vehicle-list');
+                vehicleList.innerHTML = '';
+                
+                // Example vehicle data
+                for (let i = 1; i <= 20; i++) {
+                    const vehicleItem = document.createElement('div');
+                    vehicleItem.className = 'vehicle-item';
+                    vehicleItem.textContent = `Vehicle ${i} - Passengers: 0/10`;
+                    vehicleList.appendChild(vehicleItem);
+                }
+            }
+            
+            // Initial update
+            updateDashboard();
+            
+            // Set up buttons - these would make AJAX calls to server in real implementation
+            document.getElementById('start-btn').addEventListener('click', function() {
+                console.log('Start animation');
+                // Would call server endpoint to start animation
+            });
+            
+            document.getElementById('pause-btn').addEventListener('click', function() {
+                console.log('Pause animation');
+                // Would call server endpoint to pause animation
+            });
+            
+            document.getElementById('record-btn').addEventListener('click', function() {
+                console.log('Start recording');
+                // Would call server endpoint to start recording
+            });
+            
+            document.getElementById('stop-record-btn').addEventListener('click', function() {
+                console.log('Stop recording');
+                // Would call server endpoint to stop recording
+            });
+            
+            document.getElementById('refresh-btn').addEventListener('click', function() {
+                updateDashboard();
+            });
+            
+            // In a real implementation, you'd use WebSockets or Server-Sent Events
+            // to update the dashboard in real-time
+        </script>
+    </body>
+    </html>
+    

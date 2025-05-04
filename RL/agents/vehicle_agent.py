@@ -68,7 +68,7 @@ class VehicleAgent:
 
         self.model = model
 
-    def learn(self):
+    def learn(self, callback=None):
         self.set_up()
 
         time_stamp = datetime.now().strftime("%Y%m%d-%H%M")
@@ -77,12 +77,22 @@ class VehicleAgent:
                                                  name_prefix='vehicle_rl_%s_%s' % (self.agent, time_stamp))
 
         timestep_callback = TimestepPrintCallback(print_freq=500)  # every 500 steps print
+        
+        # Create a list of callbacks
+        callbacks = [checkpoint_callback, timestep_callback]
+        
+        # Add the custom callback if provided
+        if callback is not None:
+            if isinstance(callback, list):
+                callbacks.extend(callback)
+            else:
+                callbacks.append(callback)
 
         reset_num_timesteps = True if self.load_model_dir is None else False
 
         self.model.learn(
             total_timesteps=self.total_time_steps,
-            callback=[checkpoint_callback, timestep_callback],
+            callback=callbacks,
             reset_num_timesteps=reset_num_timesteps
         )
 
