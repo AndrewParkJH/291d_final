@@ -36,6 +36,8 @@ class MultiVehicleEnv(gym.Env):
                                             shape=(self.num_vehicles, obs_dim_per_vehicle),
                                             dtype=np.float32)
 
+        self.movement_interval = 10  # Update vehicle positions every 10 seconds
+        self.last_movement_time = 0
 
         # new request: -1 of no new request, 0 if origin, 1 if destination
         # new request: time to travel to this position
@@ -66,21 +68,32 @@ class MultiVehicleEnv(gym.Env):
         decoded_actions = [self.decode_action(a) for a in actions]
         invalid_flags = self.sim.apply_actions(agent_object, decoded_actions)
 
-        # Step 2: Advance vehicle states
-        self.sim.update_state(agent_object='vehicle', simulation_run_time=self.decision_epoch)
+        # Step 2: Advance vehicle states with continuous movement
+        current_time = self.simpy_env.now
+        time_since_last_movement = current_time - self.last_movement_time
+        
+        # Update vehicle positions more frequently than decision epochs
+        if time_since_last_movement >= self.movement_interval:
+            # Update vehicle states
+            self.sim.update_state(agent_object='vehicle', simulation_run_time=self.movement_interval)
+            self.last_movement_time = current_time
+            
+            # Log vehicle movement for debugging
+            if hasattr(self.sim, 'network') and hasattr(self.sim.network, 'vehicles'):
+                for i, vehicle in enumerate(self.sim.network.vehicles):
+                    if hasattr(vehicle, 'current_pos') and hasattr(vehicle, 'next_node'):
+                        print(f"Vehicle {i} movement update:")
+                        print(f"  Current position: {vehicle.current_pos}")
+                        print(f"  Next node: {vehicle.next_node}")
+                        print(f"  Traversal process alive: {vehicle.traversal_process is not None and vehicle.traversal_process.is_alive}")
 
-        # Step 5: Get next observation
+        # Step 3: Get next observation
         obs, info = self.sim.get_observation(agent_object='vehicle')
 
-        # Step 6: Compute rewards
+        # Step 4: Compute rewards
         reward = self.sim.compute_reward(agent_object, obs)
 
-        # Step 7: Check done
+        # Step 5: Check done
         done = self.simpy_env.now >= self.sim.end_time
-
-        # if done is True:
-        #     print(1)
-
-        # self.sim.control_event = self.simpy_env.event()  # reset control_events
 
         return np.array(obs), reward, done, False, info

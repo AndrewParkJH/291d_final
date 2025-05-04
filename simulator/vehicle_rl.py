@@ -138,21 +138,21 @@ class Vehicle:
              group_sizes_along_trip_sequence, remaining_times_along_trip_sequence]
         """
         # Stage flag: 0 (no request), 1 (new request present)
+        stage = 0 if self.new_request is None else 1
+        invalid_action_counter = self.invalid_action_counter
+        stop_count = len(self.trip_sequence)  # trip sequence length
+        remaining_cap = self.current_num_pax  # remaining capacity
 
-        stage                   = 0 if self.new_request is None else 1
-        invalid_action_counter  = self.invalid_action_counter
-        stop_count              = len(self.trip_sequence)  # trip sequence length
-        remaining_cap           = self.current_num_pax  # remaining capacity
-
-        time_constraint         = 0.0  # Time remaining until deadline for the new request
+        time_constraint = 0.0  # Time remaining until deadline for the new request
 
         # Prepare insertion cost vectors (fixed maximum lengths for consistency)
-        dist_from_trip_seq_o    = [0.0] * (2 * self.max_capacity) # 0 + 1~23
-        dist_from_trip_seq_d    = [0.0] * (2 * self.max_capacity) # 1 + 2~24
-        group_size              = [0.0] * (2 * self.max_capacity)
-        remaining_time          = [0.0] * (2 * self.max_capacity)
+        max_sequence_length = 2 * self.max_capacity
+        dist_from_trip_seq_o = [1.0] * max_sequence_length  # 0 + 1~23
+        dist_from_trip_seq_d = [1.0] * max_sequence_length  # 1 + 2~24
+        group_size = [0.0] * max_sequence_length
+        remaining_time = [0.0] * max_sequence_length
 
-        invalid_flag            = 1 if self.is_invalid_action else 0
+        invalid_flag = 1 if self.is_invalid_action else 0
 
         if self.new_request is not None:
             # compute deadline
@@ -162,35 +162,40 @@ class Vehicle:
 
         # group size and remaining time
         for idx, seq in enumerate(self.trip_sequence):
+            # Skip if we've exceeded the maximum sequence length
+            if idx >= max_sequence_length:
+                print(f"Warning: Trip sequence length ({len(self.trip_sequence)}) exceeds maximum capacity ({max_sequence_length})")
+                break
+                
             request_id = seq['request_id']
             request = self.current_requests.get(request_id)
-            group_size[idx] = request['num_passengers']
-            remaining_time[idx] = request['remaining_time']
+            if request:
+                group_size[idx] = request['num_passengers']
+                remaining_time[idx] = request['remaining_time']
 
-            if self.new_request is not None:
-                # compute insertion cost
-                o_node = self.new_request["pu_osmid"]
-                d_node = self.new_request["do_osmid"]
+                if self.new_request is not None:
+                    # compute insertion cost
+                    o_node = self.new_request["pu_osmid"]
+                    d_node = self.new_request["do_osmid"]
 
-                node_id = self.trip_sequence[idx]['node_id']
-                dist_from_trip_seq_o[idx] = self.network.get_euclidean_distance(node_id, o_node)
-                dist_from_trip_seq_d[idx] = self.network.get_euclidean_distance(node_id, d_node)
+                    node_id = self.trip_sequence[idx]['node_id']
+                    dist_from_trip_seq_o[idx] = self.network.get_euclidean_distance(node_id, o_node)
+                    dist_from_trip_seq_d[idx] = self.network.get_euclidean_distance(node_id, d_node)
 
         # normalization
-        invalid_action_counter      = invalid_action_counter/4
-        max_distance                = max(dist_from_trip_seq_o + dist_from_trip_seq_d)
-        normalized_stop_count       = stop_count / (2 * self.max_capacity)  # # trip sequence normalized
-        normalized_remaining_cap    = remaining_cap / self.max_capacity  # remaining capacity normalized
-        time_constraint             = time_constraint/time_normalizer  # Time remaining until deadline for the new request
+        invalid_action_counter = invalid_action_counter/4
+        max_distance = max(dist_from_trip_seq_o + dist_from_trip_seq_d)
+        normalized_stop_count = stop_count / max_sequence_length  # # trip sequence normalized
+        normalized_remaining_cap = remaining_cap / self.max_capacity  # remaining capacity normalized
+        time_constraint = time_constraint/time_normalizer  # Time remaining until deadline for the new request
 
         # Avoid division by zero
         if max_distance > 0:
-            dist_from_trip_seq_o    = [x / max_distance for x in dist_from_trip_seq_o]
-            dist_from_trip_seq_d    = [x / max_distance for x in dist_from_trip_seq_d]
+            dist_from_trip_seq_o = [x / max_distance for x in dist_from_trip_seq_o]
+            dist_from_trip_seq_d = [x / max_distance for x in dist_from_trip_seq_d]
 
-        group_size                  = [size/self.max_capacity for size in group_size]
-        remaining_time              = [t / time_normalizer for t in remaining_time]
-
+        group_size = [size/self.max_capacity for size in group_size]
+        remaining_time = [t / time_normalizer for t in remaining_time]
 
         state_vec = ([stage, invalid_action_counter, normalized_stop_count, normalized_remaining_cap, time_constraint]
                      + dist_from_trip_seq_o + dist_from_trip_seq_d + group_size + remaining_time)
@@ -221,29 +226,67 @@ class Vehicle:
 
         # Get the next stop and associated request
         next_request = self.trip_sequence[0]
-        next_node    = next_request['node_id']
+        next_node = next_request['node_id']
 
+        # If already moving to the correct node, continue
         if self.traversal_process is not None and self.traversal_process.is_alive:
             if self.next_node == next_node:
                 return
             else:
                 self.traversal_process.interrupt()  # kill old traversal if exists
 
+        # Optimize route if there are multiple stops
+        if len(self.trip_sequence) > 1:
+            # Get all nodes in the trip sequence
+            nodes = [stop['node_id'] for stop in self.trip_sequence]
+            
+            # Find the shortest path through all nodes
+            try:
+                # Use networkx to find the shortest path
+                path = nx.shortest_path(self.network.graph, source=self.current_node, target=nodes[-1])
+                
+                # Reorder trip sequence based on the shortest path
+                new_sequence = []
+                for node in path[1:]:  # Skip current node
+                    # Find the corresponding request in trip_sequence
+                    for stop in self.trip_sequence:
+                        if stop['node_id'] == node:
+                            new_sequence.append(stop)
+                            break
+                
+                if new_sequence:
+                    self.trip_sequence = new_sequence
+                    next_request = self.trip_sequence[0]
+                    next_node = next_request['node_id']
+            except nx.NetworkXNoPath:
+                print(f"Warning: No path found from {self.current_node} to {nodes[-1]}")
+                return
+
         # start traversal
         self.next_node = next_node
         _, _, route, segment_times = self.travel_time_mgr.query(self.current_node, self.next_node)
 
+        # Validate route and segment times
+        if not route or not segment_times:
+            print(f"Warning: Invalid route or segment times for {self.current_node} -> {self.next_node}")
+            return
+
         self.current_trajectory = route[1:]
         self.current_segment_times = segment_times
-        if len(route[1:]) != len(segment_times):
-            print("edge case")
-            self.travel_time_mgr.query(self.current_node, self.next_node)
+
+        # Log route information for debugging
+        print(f"Vehicle {self.vehicle_id} route update:")
+        print(f"  Current node: {self.current_node}")
+        print(f"  Next node: {self.next_node}")
+        print(f"  Route length: {len(route)}")
+        print(f"  Segment times: {len(segment_times)}")
+        print(f"  Trip sequence length: {len(self.trip_sequence)}")
 
         self.traversal_process = self.env.process(self.traverse_trajectory())
 
     def traverse_trajectory(self):
         """
-        Traverse node-by-node along current_trajectory.
+        Traverse node-by-node along current_trajectory with smooth acceleration and deceleration.
         """
         try:
             while len(self.current_trajectory) > 0:
@@ -251,20 +294,64 @@ class Vehicle:
                     raise Exception("segment time length zero: edge case detected")
 
                 next_node = self.current_trajectory.pop(0)
-                segment_travel_time = self.current_segment_times.pop(0)
+                total_segment_time = self.current_segment_times.pop(0)
 
-                # Move to next node
-                yield self.env.timeout(segment_travel_time)
+                # Get start and end positions
+                start_pos = self.network.get_node_coordinate(self.current_node)
+                end_pos = self.network.get_node_coordinate(next_node)
 
-                # Move to next node
+                # Calculate distance and speed
+                distance = self.network.get_euclidean_distance(self.current_node, next_node)
+                avg_speed = distance / total_segment_time if total_segment_time > 0 else 0
+
+                # Movement parameters
+                acceleration_time = min(5.0, total_segment_time / 4)  # 5 seconds or 1/4 of segment time
+                deceleration_time = acceleration_time
+                cruise_time = total_segment_time - acceleration_time - deceleration_time
+
+                # Acceleration phase
+                if acceleration_time > 0:
+                    steps = int(acceleration_time / 1.0)  # Update every second
+                    for step in range(steps):
+                        progress = (step + 1) / steps
+                        # Quadratic acceleration
+                        speed_factor = progress ** 2
+                        intermediate_lon = start_pos[0] + (end_pos[0] - start_pos[0]) * speed_factor
+                        intermediate_lat = start_pos[1] + (end_pos[1] - start_pos[1]) * speed_factor
+                        self.current_pos = (intermediate_lon, intermediate_lat)
+                        yield self.env.timeout(1.0)
+
+                # Cruise phase
+                if cruise_time > 0:
+                    steps = int(cruise_time / 1.0)
+                    for step in range(steps):
+                        progress = (step + 1) / steps
+                        intermediate_lon = start_pos[0] + (end_pos[0] - start_pos[0]) * (acceleration_time + progress * cruise_time) / total_segment_time
+                        intermediate_lat = start_pos[1] + (end_pos[1] - start_pos[1]) * (acceleration_time + progress * cruise_time) / total_segment_time
+                        self.current_pos = (intermediate_lon, intermediate_lat)
+                        yield self.env.timeout(1.0)
+
+                # Deceleration phase
+                if deceleration_time > 0:
+                    steps = int(deceleration_time / 1.0)
+                    for step in range(steps):
+                        progress = (step + 1) / steps
+                        # Quadratic deceleration
+                        speed_factor = 1 - (1 - progress) ** 2
+                        intermediate_lon = start_pos[0] + (end_pos[0] - start_pos[0]) * (acceleration_time + cruise_time + speed_factor * deceleration_time) / total_segment_time
+                        intermediate_lat = start_pos[1] + (end_pos[1] - start_pos[1]) * (acceleration_time + cruise_time + speed_factor * deceleration_time) / total_segment_time
+                        self.current_pos = (intermediate_lon, intermediate_lat)
+                        yield self.env.timeout(1.0)
+
+                # Update node and position
                 self.current_node = next_node
+                self.current_pos = end_pos
 
                 # Update internal timers
-                self.update_request_wait_time(segment_travel_time)
+                self.update_request_wait_time(total_segment_time)
 
             # At destination (final node of trajectory)
             self.arrive_at_stop()
-
 
         except (simpy.Interrupt, GeneratorExit):
             # If interrupted (new action), do nothing here

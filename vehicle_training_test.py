@@ -24,10 +24,29 @@ class VisualizationCallback(BaseCallback):
         self.episode_count = 0
         self.step_count = 0
         self.current_episode_reward = 0
+        self.last_log_time = 0
+        self.log_interval = 10  # Log every 10 steps
 
     def _on_step(self) -> bool:
         # Get the current environment
         env = self.training_env.envs[0]
+        
+        # Debug logging for vehicle states
+        if self.step_count % self.log_interval == 0:
+            print(f"\n=== Step {self.step_count} Debug Info ===")
+            print(f"Simulation Time: {env.sim.env.now}")
+            print(f"Number of Vehicles: {len(env.sim.network.vehicles)}")
+            
+            # Log vehicle states
+            for i, vehicle in enumerate(env.sim.network.vehicles):
+                print(f"\nVehicle {i} State:")
+                print(f"  Position: {vehicle.current_pos}")
+                print(f"  Current Node: {vehicle.current_node}")
+                print(f"  Next Node: {vehicle.next_node}")
+                print(f"  Passengers: {vehicle.current_num_pax}/{vehicle.max_capacity}")
+                print(f"  Trip Sequence: {vehicle.trip_sequence}")
+                print(f"  Current Requests: {vehicle.current_requests}")
+                print(f"  Traversal Process Alive: {vehicle.traversal_process is not None and vehicle.traversal_process.is_alive}")
         
         # Get vehicle states
         global vehicle_states
@@ -59,6 +78,11 @@ class VisualizationCallback(BaseCallback):
         # Get request data
         global request_data
         request_data = []
+        
+        # Debug logging for requests
+        if self.step_count % self.log_interval == 0:
+            print("\nRequest Data:")
+            print(f"Number of Pending Requests: {len(env.sim.current_request) if hasattr(env.sim, 'current_request') else 0}")
         
         # Get assigned requests from vehicles
         for vehicle in env.sim.network.vehicles:
@@ -99,6 +123,13 @@ class VisualizationCallback(BaseCallback):
                                 'num_passengers': int(request['num_passengers']),
                                 'status': 'assigned'
                             })
+                            
+                            # Debug logging for request processing
+                            if self.step_count % self.log_interval == 0:
+                                print(f"Processed Assigned Request {request_id}:")
+                                print(f"  Origin: ({origin_lat}, {origin_lon})")
+                                print(f"  Destination: ({dest_lat}, {dest_lon})")
+                                print(f"  Status: assigned")
                 except (ValueError, TypeError, IndexError, KeyError) as e:
                     print(f"Error processing coordinates for request {request_id}:")
                     print(f"  Error: {str(e)}")
@@ -145,6 +176,13 @@ class VisualizationCallback(BaseCallback):
                                     'num_passengers': int(request.get('num_passengers', 1)),
                                     'status': 'pending'
                                 })
+                                
+                                # Debug logging for pending request processing
+                                if self.step_count % self.log_interval == 0:
+                                    print(f"Processed Pending Request {request.get('id', 'unknown')}:")
+                                    print(f"  Origin: ({origin_lat}, {origin_lon})")
+                                    print(f"  Destination: ({dest_lat}, {dest_lon})")
+                                    print(f"  Status: pending")
                             except (ValueError, TypeError, IndexError) as e:
                                 print(f"Error processing coordinates for pending request:")
                                 print(f"  Error: {str(e)}")
@@ -174,6 +212,15 @@ class VisualizationCallback(BaseCallback):
         training_data['rewards'].append(reward)
         training_data['episode_lengths'].append(int(self.locals.get('episode_lengths', [0])[-1]))
         training_data['episode_rewards'].append(self.current_episode_reward)
+        
+        # Debug logging for episode information
+        if self.step_count % self.log_interval == 0:
+            print(f"\nEpisode Info:")
+            print(f"  Current Reward: {reward}")
+            print(f"  Episode Reward: {self.current_episode_reward}")
+            print(f"  Episode Count: {self.episode_count}")
+            print(f"  Step Count: {self.step_count}")
+            print("=== End Debug Info ===\n")
         
         # Emit updates via WebSocket
         socketio.emit('training_update', {
@@ -205,7 +252,7 @@ def main():
         'simulation_start_time': 7*3600,  # 7 AM
         'simulation_end_time': 10*3600,   # 10 AM
         'accumulation_time': 120,         # 2 minutes decision epoch
-        'num_vehicles': 10,
+        'num_vehicles': 40,
         'vehicle_capacity': 10,
         'randomize_vehicle_position': True
     }
