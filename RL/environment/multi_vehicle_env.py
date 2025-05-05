@@ -26,7 +26,7 @@ class MultiVehicleEnv(gym.Env):
 
         capacity = kwargs_sim['vehicle_capacity']
         self.num_vehicles = kwargs_sim['num_vehicles']
-        self.action_encoder = capacity * 2 + 1
+        self.action_encoder = capacity * 2
 
         self.action_space = spaces.MultiDiscrete([self.action_encoder ** 2] * self.num_vehicles)
 
@@ -69,23 +69,25 @@ class MultiVehicleEnv(gym.Env):
         invalid_flags = self.sim.apply_actions(agent_object, decoded_actions)
 
         # Step 2: Advance vehicle states with continuous movement
-        current_time = self.simpy_env.now
-        time_since_last_movement = current_time - self.last_movement_time
-        
-        # Update vehicle positions more frequently than decision epochs
-        if time_since_last_movement >= self.movement_interval:
-            # Update vehicle states
-            self.sim.update_state(agent_object='vehicle', simulation_run_time=self.movement_interval)
-            self.last_movement_time = current_time
-            
-            # Log vehicle movement for debugging
-            if hasattr(self.sim, 'network') and hasattr(self.sim.network, 'vehicles'):
-                for i, vehicle in enumerate(self.sim.network.vehicles):
-                    if hasattr(vehicle, 'current_pos') and hasattr(vehicle, 'next_node'):
-                        print(f"Vehicle {i} movement update:")
-                        print(f"  Current position: {vehicle.current_pos}")
-                        print(f"  Next node: {vehicle.next_node}")
-                        print(f"  Traversal process alive: {vehicle.traversal_process is not None and vehicle.traversal_process.is_alive}")
+        self.sim.update_state(agent_object='vehicle', simulation_run_time=self.decision_epoch)
+        #
+        # current_time = self.simpy_env.now
+        # time_since_last_movement = current_time - self.last_movement_time
+        #
+        # # Update vehicle positions more frequently than decision epochs
+        # if time_since_last_movement >= self.movement_interval:
+        #     # Update vehicle states
+        #     self.sim.update_state(agent_object='vehicle', simulation_run_time=self.movement_interval)
+        #     self.last_movement_time = current_time
+        #
+        #     # Log vehicle movement for debugging
+        #     # if hasattr(self.sim, 'network') and hasattr(self.sim.network, 'vehicles'):
+        #     #     for i, vehicle in enumerate(self.sim.network.vehicles):
+        #     #         if hasattr(vehicle, 'current_pos') and hasattr(vehicle, 'next_node'):
+        #     #             print(f"Vehicle {i} movement update:")
+        #     #             print(f"  Current position: {vehicle.current_pos}")
+        #     #             print(f"  Next node: {vehicle.next_node}")
+        #     #             print(f"  Traversal process alive: {vehicle.traversal_process is not None and vehicle.traversal_process.is_alive}")
 
         # Step 3: Get next observation
         obs, info = self.sim.get_observation(agent_object='vehicle')

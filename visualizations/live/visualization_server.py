@@ -305,7 +305,7 @@ def handle_connect():
 
 def start_visualization_server(port=5000):
     """Start the visualization server in a separate thread"""
-    threading.Thread(target=lambda: socketio.run(app, host='0.0.0.0', port=port, debug=False)).start()
+    threading.Thread(target=lambda: socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)).start()
     print(f"Visualization server started at http://localhost:{port}")
     return app
 

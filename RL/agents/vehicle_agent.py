@@ -57,8 +57,17 @@ class VehicleAgent:
         env = Monitor(self.env(self.sim_kwargs))
 
         if self.agent == 'ppo':
-            model = PPO("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1, 
-                        device=self.device, n_steps=1024, batch_size=64)
+            model = PPO("MlpPolicy", env,
+                        tensorboard_log=self.tensorboard_log_dir,
+                        verbose=1,
+                        device=self.device
+                        # n_steps=2048,
+                        # batch_size=64,
+                        # n_epochs=4,
+                        # gae_lambda = 0.95,
+                        # clip_range = 0.2,
+                        # ent_coef = 0.1
+                        )
         elif self.agent == 'dqn':
             model = DQN("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1,
                         device=self.device, batch_size=64)

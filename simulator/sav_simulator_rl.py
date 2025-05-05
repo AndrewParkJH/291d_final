@@ -142,17 +142,17 @@ class ShuttleSim:
 
         if agent_object == 'vehicle':
             # Compute each vehicle's reward
-            rewards = [self.compute_vehicle_reward(single_obs) for single_obs in obs]
+            rewards = [self.compute_vehicle_reward(single_obs, vehicle) for single_obs, vehicle in zip(obs, self.network.vehicles)]
 
             # Use average reward across vehicles as the single scalar reward
-            return float(np.sum(rewards))
+            return float(np.mean(rewards))
 
         elif agent_object == 'network':
             reward = 0.0
 
         return reward
 
-    def compute_vehicle_reward(self, obs):
+    def compute_vehicle_reward(self, obs, vehicle):
         """
         Compute reward for vehicles
         :param obs:
@@ -169,11 +169,15 @@ class ShuttleSim:
         group_size                  = obs[5+4*self.vehicle_capacity:5+6*self.vehicle_capacity]
         normalized_remaining_time   = obs[5+6*self.vehicle_capacity:5+8*self.vehicle_capacity]
 
+        # if normalized_stop_count>0:
+            # print('')
         # Initialize reward components
         reward = 0.0
 
         # 1. **Invalid action penalties** (e.g., wrong insertion or unnecessary action)
-        reward += -invalid_counter*10
+        reward += -invalid_counter
+        reward += -(vehicle.deg_wrong_o_1+vehicle.deg_wrong_o_2+vehicle.deg_wrong_o_3+vehicle.deg_wrong_o_4
+                    + vehicle.deg_wrong_d_1+vehicle.deg_wrong_d_2+vehicle.deg_wrong_d_3+vehicle.deg_wrong_d_4)
 
         # 2. **Pickup event reward** (passengers picked up and on board)
         reward += normalized_stop_count
