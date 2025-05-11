@@ -6,9 +6,16 @@ import osmnx as ox
 import os
 import pandas as pd
 import numpy as np
+from passenger_cluster import clusterGenerator
+from collections import Counter
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.curdir
 GRAPH_FILE_DIR = os.path.join(BASE_DIR, "data/road_network/sf_road_network.graphml")
+APPLY_CLUSTER = True
 
 class ShuttleSim:
     def __init__(self, env=None, network=None, dispatcher=None, graph = None, request_df=None,
@@ -16,7 +23,8 @@ class ShuttleSim:
                  accumulation_time=120, num_vehicles=40,
                  randomize_vehicle_position=True,
                  randomize_vehicle_passengers=False,
-                 vehicle_capacity=10, debug=False):
+                 vehicle_capacity=10, debug=False,
+                 euclidean_radius=800, walking_speed=1.2, max_walk_time=600):
 
         self.env = env
         self.network = network
@@ -27,6 +35,13 @@ class ShuttleSim:
         data_dir = os.path.join(BASE_DIR, f"data/episode_{trip_date}.csv")
         self.graph = ox.load_graphml(GRAPH_FILE_DIR) if graph is None else graph
         self.request_df = pd.read_csv(data_dir) if request_df is None else request_df
+
+        # cluster generator
+        self.cluster_generator = clusterGenerator(self, current_request_df=None,
+                                                  euclidean_radius=euclidean_radius,
+                                                  walking_speed=walking_speed,
+                                                  max_walk_time=max_walk_time)
+        self.clusters_over_time = {}
 
         # simulation state data
         self.current_request            = []
@@ -130,6 +145,25 @@ class ShuttleSim:
         if agent_object == 'vehicle':
             # self.start_control_trigger(simulation_run_time)  # start control trigger to keep 120 s interval
             self.current_request = self.request_accumulate()
+            # clustering
+
+            if APPLY_CLUSTER:
+                self.cluster_generator.update_aggregated_requests(self.current_request)
+                clusters = self.cluster_generator.extract_clusters()
+                clusters = [clust for clust in clusters if clust['num_req'] > 1]
+                total_num_req = sum(clust['num_req'] for clust in clusters)
+
+                # Suppose clusters is your list of dicts
+                num_req_list = [clust['num_req'] for clust in clusters]
+                distribution = Counter(num_req_list)
+
+                # Convert to a list of (num_req, count)
+                distribution_list = sorted(distribution.items())
+                log_string = ', '.join(f'{num_req}: {count} clusters' for num_req, count in distribution_list)
+                logger.info(f"[{self.env.now}-{self.env.now + simulation_run_time}], cluster_length: {len(clusters)}, size_aggregated_request: {len(self.current_request)}, total_num_pass_clustered: {total_num_req}, Cluster distribution by num_req → {log_string}")
+                # print(f"[{self.env.now}] Found {len(clusters)} clusters.")
+                self.clusters_over_time[self.env.now] = clusters
+
             self.assign_requests_heuristics()
             self.network.update_vehicle_state()
             self.env.run(until=self.env.now + simulation_run_time)

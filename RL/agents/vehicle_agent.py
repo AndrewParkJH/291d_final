@@ -4,6 +4,7 @@ from stable_baselines3.common.monitor import Monitor
 from datetime import datetime
 import os
 import torch
+import re
 
 BASE_LOG_DIR = './RL/training/logs/'
 BASE_MODEL_DIR = './RL/training/models/'
@@ -33,7 +34,13 @@ class VehicleAgent:
         torch.set_num_threads(self.n_cpu)
 
         # Automatically create new directories
-        self.run_name = self.get_next_run_name()
+        if load_model_dir:
+            # Extract PPO14 from path
+            match = re.search(r'PPO\d+', load_model_dir)
+            self.run_name = match.group(0) if match else self.get_next_run_name()
+        else:
+            self.run_name = self.get_next_run_name()
+
         self.tensorboard_log_dir = os.path.join(BASE_LOG_DIR, self.run_name, 'tensorboard_log')
         self.checkpoint_log_dir = os.path.join(BASE_LOG_DIR, self.run_name, 'checkpoint_log')
         self.model_dir = os.path.join(BASE_MODEL_DIR, self.run_name)
@@ -56,32 +63,42 @@ class VehicleAgent:
         # env = self.env(self.sim_kwargs)
         env = Monitor(self.env(self.sim_kwargs))
 
-        if self.agent == 'ppo':
-            model = PPO("MlpPolicy", env,
-                        tensorboard_log=self.tensorboard_log_dir,
-                        verbose=1,
-                        device=self.device
-                        # n_steps=2048,
-                        # batch_size=64,
-                        # n_epochs=4,
-                        # gae_lambda = 0.95,
-                        # clip_range = 0.2,
-                        # ent_coef = 0.1
-                        )
-        elif self.agent == 'dqn':
-            model = DQN("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1,
-                        device=self.device, batch_size=64)
+        if self.load_model_dir is not None:
+            print(f"Loading model from {self.load_model_dir}")
+            if self.agent == 'ppo':
+                self.model = PPO.load(self.load_model_dir, env=env, tensorboard_log=self.tensorboard_log_dir,
+                                      tb_log_name='PPO_1',
+                                      device=self.device)
+            elif self.agent == 'dqn':
+                self.model = DQN.load(self.load_model_dir, env=env, tensorboard_log=self.tensorboard_log_dir,
+                                      device=self.device)
+            else:
+                raise ValueError('Unsupported agent type.')
         else:
-            model = None
-            raise ValueError('check agent name parameter to Vehicle Agent')
-
-        self.model = model
+            if self.agent == 'ppo':
+                self.model = PPO("MlpPolicy", env,
+                            tensorboard_log=self.tensorboard_log_dir,
+                            verbose=1,
+                            device=self.device
+                            # n_steps=2048,
+                            # batch_size=64,
+                            # n_epochs=4,
+                            # gae_lambda = 0.95,
+                            # clip_range = 0.2,
+                            # ent_coef = 0.1
+                            )
+            elif self.agent == 'dqn':
+                self.model = DQN("MlpPolicy", env, tensorboard_log=self.tensorboard_log_dir, verbose=1,
+                            device=self.device, batch_size=64)
+            else:
+                self.model = None
+                raise ValueError('check agent name parameter to Vehicle Agent')
 
     def learn(self, callback=None):
         self.set_up()
 
         time_stamp = datetime.now().strftime("%Y%m%d-%H%M")
-        checkpoint_callback = CheckpointCallback(save_freq=50,
+        checkpoint_callback = CheckpointCallback(save_freq=1000,
                                                  save_path=self.checkpoint_log_dir,
                                                  name_prefix='vehicle_rl_%s_%s' % (self.agent, time_stamp))
 
