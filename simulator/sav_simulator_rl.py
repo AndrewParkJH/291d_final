@@ -18,7 +18,7 @@ GRAPH_FILE_DIR = os.path.join(BASE_DIR, "data/road_network/sf_road_network.graph
 APPLY_CLUSTER = False
 
 class ShuttleSim:
-    def __init__(self, env=None, network=None, dispatcher=None, graph = None, request_df=None,
+    def __init__(self, run_mode='rl',env=None, network=None, dispatcher=None, graph = None, request_df=None,
                  trip_date='2019-09-17', simulation_start_time=7*3600, simulation_end_time=36000,
                  accumulation_time=120, num_vehicles=40,
                  randomize_vehicle_position=True,
@@ -26,6 +26,7 @@ class ShuttleSim:
                  vehicle_capacity=10, debug=False,
                  euclidean_radius=800, walking_speed=1.2, max_walk_time=600):
 
+        self.run_mode = run_mode
         self.env = env
         self.network = network
         self.fast_network = None
@@ -224,7 +225,6 @@ class ShuttleSim:
 
         return reward
 
-
     def get_observation(self, agent_object):
         """
         TODO: get observations
@@ -239,6 +239,16 @@ class ShuttleSim:
             obs, info  = self.network.get_network_state()
 
         return obs, info
+
+    def solve_vrp_ilp(self, agent_object='vehicle'):
+        if agent_object == 'vehicle':
+            for idx, vehicle in enumerate(self.network.vehicles):
+                invalid_flags = vehicle.optimal_trip_sequence_ilp()
+
+        elif agent_object == 'network':
+            invalid_flags = 0
+
+        return invalid_flags
 
     def _initialize_simulation(self):
         simpy_env = simpy.Environment(initial_time=self.start_time) # starts at 1 accumulation for initial observation
