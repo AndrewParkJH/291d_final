@@ -2,7 +2,10 @@ from utils.time_manager import TravelTimeManager
 import random
 import simpy
 import networkx as nx
+import logging
+from gurobipy import Model, GRB, quicksum
 
+logger = logging.getLogger(__name__)
 T_MAX = 600  # time penalty normalizer
 
 
@@ -409,8 +412,17 @@ class Vehicle:
                     self.current_num_pax += request['num_passengers']  # add passenger if origin is reached
                     self.total_pickups += request['num_passengers']  # Pickup event
 
+                    logger.info(f"[Pickup] Time={self.env.now:.1f}, ReqID={request_id}, "
+                                f"Node={node_id}, Pax={request['num_passengers']}, "
+                                f"WaitTime={request.get('wait_time', 'N/A')}")
+
                 elif stage == 'dropoff':
                     self.total_dropoffs += request['num_passengers']  # Dropoff event
+
+                    remaining = request.get('remaining_time', 0)
+                    logger.info(f"[Dropoff] Time={self.env.now:.1f}, ReqID={request_id}, "
+                                f"Node={node_id}, Pax={request['num_passengers']}, "
+                                f"RemainingTime={remaining:.1f}")
 
                     if request['remaining_time'] > 0:
                         self.total_successful_dropoffs += request['num_passengers']
@@ -456,6 +468,173 @@ class Vehicle:
             self.current_num_pax = count
             self.current_requests.clear()
             self.trip_sequence.clear()
+
+    """
+    ILP based routing problem solver
+    """
+    def _get_all_request_nodes(self):
+        """
+        Build list of relevant pickup/dropoff nodes for all requests.
+        If a request has already been picked up, only dropoff is added.
+        """
+        request_nodes = []
+        request_map = {}
+
+        # Combine current + new request
+        all_requests = dict(self.current_requests)
+        if self.new_request:
+            all_requests[self.new_request["request_id"]] = self.new_request
+
+        for rid, req in all_requests.items():
+            already_picked_up = (
+                    rid in self.current_requests and
+                    any(stop['request_id'] == rid and stop['stage'] == 'dropoff' for stop in self.trip_sequence) and
+                    not any(stop['request_id'] == rid and stop['stage'] == 'pickup' for stop in self.trip_sequence)
+            )
+
+            request_map[rid] = {
+                "pickup": req["pu_osmid"],
+                "dropoff": req["do_osmid"],
+                "group_size": req["num_passengers"],
+                "already_picked_up": already_picked_up
+            }
+
+            if not already_picked_up:
+                request_nodes.append((rid, "pickup", req["pu_osmid"]))
+
+            request_nodes.append((rid, "dropoff", req["do_osmid"]))
+
+        return request_nodes, request_map
+
+    def optimal_trip_sequence_ilp(self):
+        import itertools
+        import time
+        start_time = time.time()
+
+        def is_valid_sequence(seq, picked_status):
+            seen_pickups = set()
+            for r_id, stage, _ in seq:
+                if stage == "pickup":
+                    seen_pickups.add(r_id)
+                elif stage == "dropoff":
+                    if not picked_status.get(r_id, False) and r_id not in seen_pickups:
+                        return False
+            return True
+
+        def compute_total_travel(seq, start_node):
+            total = 0
+            current = start_node
+            for _, _, node in seq:
+                _, _, _, t = self.network.fast_network.fast_dijkstra(current, node)
+                total += sum(t) if t else 1e6
+                current = node
+            return total
+
+        # --- Build raw trip node list ---
+        trip_nodes = []
+        picked_status = {}
+
+        # Add current sequence
+        for stop in self.trip_sequence:
+            rid = stop["request_id"]
+            stage = stop["stage"]
+            node = stop["node_id"]
+            trip_nodes.append((rid, stage, node))
+            if rid not in picked_status:
+                picked_status[rid] = (stage == "dropoff")
+
+        # Add new request
+        if self.new_request:
+            rid = self.new_request["request_id"]
+            if rid not in picked_status:
+                trip_nodes.append((rid, "pickup", self.new_request["pu_osmid"]))
+                trip_nodes.append((rid, "dropoff", self.new_request["do_osmid"]))
+                picked_status[rid] = False
+
+        # --- Evaluate all valid permutations ---
+        best_time = float("inf")
+        best_seq = None
+
+        for perm in itertools.permutations(trip_nodes):
+            if not is_valid_sequence(perm, picked_status):
+                continue
+            travel_time = compute_total_travel(perm, self.current_node)
+            if travel_time < best_time:
+                best_time = travel_time
+                best_seq = perm
+
+        elapsed = time.time() - start_time
+        logger.info(f"[RouteOptimization] Time={elapsed:.3f}s, "
+                    f"#Stops={len(trip_nodes)}, "
+                    f"#Requests={len(set(r for r, _, _ in trip_nodes))}, "
+                    f"BestTravelTime={best_time:.1f}")
+
+        # --- Update internal state ---
+        if best_seq is not None:
+            self.trip_sequence = [{
+                "request_id": rid,
+                "stage": stage,
+                "node_id": node
+            } for (rid, stage, node) in best_seq]
+
+            if self.new_request:
+                self.current_requests[self.new_request["request_id"]] = self.new_request.copy()
+                self.new_request = None
+            return True
+        else:
+            return False
+
+    def fast_trip_sequence_heuristic(self):
+        request_nodes, request_map = self._get_all_request_nodes()
+        remaining = []
+        for rid, info in request_map.items():
+            if not info["already_picked_up"]:
+                remaining.append(("pickup", rid, info["pickup"]))
+            remaining.append(("dropoff", rid, info["dropoff"]))
+
+        onboard = set()
+        visited = set()
+        trip = []
+        current = self.current_node
+
+        while len(trip) < len(remaining):
+            best = None
+            best_time = float("inf")
+            for stage, rid, nid in remaining:
+                if (stage, rid) in visited:
+                    continue
+                if stage == "dropoff" and rid not in onboard:
+                    continue
+
+                time, _, _, _ = self.network.fast_network.fast_dijkstra(current, nid)
+                if time < best_time:
+                    best = (stage, rid, nid)
+                    best_time = time
+
+            if best:
+                stage, rid, nid = best
+                trip.append({
+                    "request_id": rid,
+                    "node_id": nid,
+                    "stage": stage
+                })
+                visited.add((stage, rid))
+                if stage == "pickup":
+                    onboard.add(rid)
+                current = nid
+            else:
+                break
+
+        self.trip_sequence = trip
+
+        # Add new_request if included
+        if self.new_request:
+            request_id = self.new_request['request_id']
+            if any(stop['request_id'] == request_id for stop in self.trip_sequence):
+                self.current_requests[request_id] = self.new_request.copy()
+
+        self.new_request = None
+        return True
 
 
 def generate_requests_for_vehicle(graph, vehicle_node, num_passengers, omega=600, max_delay=600):
