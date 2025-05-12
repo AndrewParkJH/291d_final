@@ -72,11 +72,31 @@ class Vehicle:
         """
         if self.current_num_pax >= self.max_capacity:
             return False  # cannot accept more passengers
-        # self.current_num_pax += request['num_passengers']
+
+        # Initialize all required fields for the request
+        processed_request = request.copy()
+        
+        # Handle both old and new field names
+        pu_osmid = request.get('pu_osmid', request.get('oid'))
+        do_osmid = request.get('do_osmid', request.get('did'))
+        
+        if not pu_osmid or not do_osmid:
+            logger.error(f"Invalid request format - missing pickup/dropoff nodes: {request}")
+            return False
+            
+        processed_request.update({
+            'pickup_time': -1,  # Initialize pickup time
+            'dropoff_time': -1,  # Initialize dropoff time
+            'remaining_time': request.get('deadline', float('inf')) - self.env.now,  # Initialize remaining time
+            'wait_time': 0,  # Initialize wait time
+            'pu_osmid': pu_osmid,  # Ensure pickup node ID is set
+            'do_osmid': do_osmid,  # Ensure dropoff node ID is set
+            'oid': pu_osmid,  # Backward compatibility
+            'did': do_osmid   # Backward compatibility
+        })
 
         # Store the new request info for the insertion process
-        self.new_request = request
-        self.new_request['remaining_time'] = request['deadline'] - self.env.now
+        self.new_request = processed_request
 
         return True
 
@@ -85,16 +105,6 @@ class Vehicle:
         Execute the insertion action chosen by the agent:
         :param action: action[1,2], index1: insertion index of pickup point, index2: insertion index of dropoff point
         """
-        """
-        insertion is valid only if current_capacity <= max_capacity - 1 (assume this is checked and true)
-        0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17 18  19  20  21  22  23
-        11 12 21 22 31 32 41 42 51 52 61 62 71 72 81 82 91 92 101 102 111 112 
-
-        action space ==> 
-            pick up [0~22] ==> [0]+[1-23] (0: do nothing)
-            drop off [1~23] ==> [1]+[2-24] (1: do nothing)
-        """
-
         self.is_invalid_action = False
         self.invalid_action_counter = 0
         self.deg_wrong_o_1 = 0
@@ -111,6 +121,11 @@ class Vehicle:
 
         self.last_action = action
 
+        # Debug logging
+        logger.debug(f"Vehicle {self.vehicle_id} processing action: {action}")
+        logger.debug(f"Current trip sequence length: {len(self.trip_sequence)}")
+        logger.debug(f"New request present: {self.new_request is not None}")
+
         # check if no request is present
         if self.new_request is None:
             if insert_o != 0 or insert_d != 0:
@@ -118,12 +133,12 @@ class Vehicle:
                 self.is_invalid_action = True
                 self.deg_wrong_o_1 = insert_o/self.max_trip_sequence
                 self.deg_wrong_d_1 = insert_d/self.max_trip_sequence
-
+                logger.debug(f"Invalid action: No request present but action {action} taken")
         else:  # if new request is present
             if insert_o == 0 or insert_d == 0:
                 self.invalid_action_counter += 1
                 self.is_invalid_action = True
-
+                logger.debug(f"Invalid action: Request present but no-op action {action} taken")
             else:
                 # because 0 is no-op, real indices start from 0
                 ins_o_idx = insert_o-1
@@ -134,24 +149,32 @@ class Vehicle:
                     self.is_invalid_action = True
                     self.invalid_action_counter += 1
                     self.deg_wrong_d_3 = (ins_o_idx - ins_d_idx)/self.max_trip_sequence
+                    logger.debug(f"Invalid action: Pickup index {ins_o_idx} >= dropoff index {ins_d_idx}")
 
                 if not ins_d_idx <= len(self.trip_sequence)+1:
                     self.is_invalid_action = True
                     self.invalid_action_counter += 1
                     self.deg_wrong_d_4 = (ins_d_idx - len(self.trip_sequence)+1)/self.max_trip_sequence
+                    logger.debug(f"Invalid action: Dropoff index {ins_d_idx} > trip sequence length {len(self.trip_sequence)}")
 
                 elif ins_o_idx < ins_d_idx:
-                    self.trip_sequence.insert(ins_o_idx, {'request_id': self.new_request['request_id'],
+                    # Insert pickup and dropoff points into trip sequence
+                    self.trip_sequence.insert(ins_o_idx, {
+                        'request_id': self.new_request['request_id'],
                                                           'node_id': self.new_request['pu_osmid'],
-                                                          'stage': 'pickup'})
+                        'stage': 'pickup'
+                    })
 
-                    self.trip_sequence.insert(ins_d_idx, {'request_id': self.new_request['request_id'],
+                    self.trip_sequence.insert(ins_d_idx, {
+                        'request_id': self.new_request['request_id'],
                                                           'node_id': self.new_request['do_osmid'],
-                                                          'stage': 'dropoff'})
+                        'stage': 'dropoff'
+                    })
 
                     # update current request after successful insertion
                     request_id = self.new_request['request_id']
                     self.current_requests[request_id] = self.new_request.copy()
+                    logger.debug(f"Successfully inserted request {request_id} at pickup index {ins_o_idx} and dropoff index {ins_d_idx}")
 
         # reset new request after each insertion epoch
         self.new_request = None

@@ -286,14 +286,18 @@ class ShuttleSim:
                 "request_id": self.request_id,
                 "oid": origin_node,
                 "did": destination_node,
+                "pu_osmid": origin_node,  # Add these fields for compatibility
+                "do_osmid": destination_node,
                 "time": request_time,  # request time
                 "deadline": deadline,
                 "distance": distance,
-                "fare":fare,
-                "pickup_time": -1,  # pickup time (not yet picked up)
-                "dropoff_time": -1,  # dropoff time (not yet dropped)
+                "fare": fare,
+                "pickup_time": -1,  # Initialize pickup time
+                "dropoff_time": -1,  # Initialize dropoff time
                 "earliest_time": earliest_time,  # estimated earliest dropoff time
-                "num_passengers": num_passengers  # number of passengers
+                "num_passengers": num_passengers,  # number of passengers
+                "remaining_time": deadline - self.env.now,  # Initialize remaining time
+                "wait_time": 0  # Initialize wait time
             }
 
             processed_requests.append(new_request)

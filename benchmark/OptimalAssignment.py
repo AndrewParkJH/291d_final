@@ -63,6 +63,8 @@ def assignment_ilp(rtv_graph, vehicles, requests, greedy_assignment, cost_penalt
     model = Model("Ride_Sharing_Optimization")
     model.setParam("TimeLimit", time_limit)
     model.setParam("MIPGap", gap)
+    model.setParam("Threads", 40)  # Use 40 threads (half of available cores to avoid oversubscription)
+    model.setParam("ConcurrentMIP", 4)  # Run 4 concurrent MIP solvers with different strategies
 
     # Define variables
     epsilon = {}  # Binary variables for trip-vehicle assignments
