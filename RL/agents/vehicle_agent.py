@@ -32,6 +32,7 @@ class VehicleAgent:
         
         # Set number of threads for PyTorch
         torch.set_num_threads(self.n_cpu)
+        print(f"Using {self.n_cpu} CPU threads")
 
         # Automatically create new directories
         if load_model_dir:

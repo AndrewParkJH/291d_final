@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.curdir
 GRAPH_FILE_DIR = os.path.join(BASE_DIR, "data/road_network/sf_road_network.graphml")
-APPLY_CLUSTER = True
+APPLY_CLUSTER = False
 
 class ShuttleSim:
     def __init__(self, env=None, network=None, dispatcher=None, graph = None, request_df=None,
@@ -130,10 +130,9 @@ class ShuttleSim:
 
         if agent_object == 'vehicle':
             for idx, (vehicle, action) in enumerate(zip(self.network.vehicles, actions)):
-                # if action < 0 or action > 27:
-                #     raise ValueError("Invalid Action Selection for Vehicle Agent")
-
-                flag = vehicle.insert_request(action)
+                # Convert action tuple to list if it's not already
+                action_list = list(action) if isinstance(action, tuple) else action
+                flag = vehicle.insert_request(action_list)
                 invalid_flags[idx] = flag # flagging penalties for invalid action
 
         elif agent_object == 'network':

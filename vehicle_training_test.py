@@ -295,12 +295,19 @@ def main():
     ---
     """
 
+    # Check if CUDA is available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    # Set number of threads for PyTorch
+    torch.set_num_threads(40)  # Adjust this number based on your CPU cores
+
     sim_kwargs = {
         'trip_date': "2019-09-17",
         'simulation_start_time': 7 * 3600,  # 7 AM
         'simulation_end_time': 10 * 3600,  # 10 AM
         'accumulation_time': 600,  # 2 minutes decision epoch
-        'num_vehicles': 1,
+        'num_vehicles': 10,
         'vehicle_capacity': 10,
         'randomize_vehicle_position': True
     }
@@ -308,7 +315,14 @@ def main():
     from RL.agents.vehicle_agent import VehicleAgent
     from RL.environment.multi_vehicle_env import MultiVehicleEnv
 
-    agent = VehicleAgent(MultiVehicleEnv, sim_kwargs, agent_name='ppo', total_time_steps=2000000, load_model_dir='./RL/training/logs/PPO15/checkpoint_log/vehicle_rl_ppo_20250504-2228_119000_steps')
+    agent = VehicleAgent(
+        MultiVehicleEnv, 
+        sim_kwargs, 
+        agent_name='ppo', 
+        total_time_steps=2000000, 
+        load_model_dir=None,
+        n_cpu=40  # Match the number of threads with PyTorch
+    )
     agent.learn()
 
 if __name__ == "__main__":

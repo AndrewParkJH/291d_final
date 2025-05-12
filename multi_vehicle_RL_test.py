@@ -13,7 +13,7 @@ sim_kwargs = {
 def main():
 
     simulator = ShuttleSim(**sim_kwargs)
-    simulator.reset()
+    simulator.reset_simulator()
 
     print("")
 
